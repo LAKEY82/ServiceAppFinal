@@ -32,6 +32,12 @@ const Profile = () => {
   const [remarks, setRemarks] = useState("");
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
 
+    // ✅ Log params received
+  useEffect(() => {
+    console.log("🟢 Profile screen received params:", route.params);
+    console.log("🟢 Extracted customer ID:", id);
+  }, [route.params, id]);
+
   // Example data for expandable sections
   const productsHistory = [
     {

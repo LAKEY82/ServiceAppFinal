@@ -94,6 +94,15 @@ const Dashboard = () => {
     fetchAppointments();
   }, [userData]);
 
+  // ✅ Add this derived variable right before render return
+const filteredAppointments = appointments.filter((item) => {
+  if (!selected) return true // show all by default if nothing selected
+  if (selected === "Pending") return item.photoStatus === "Pending"
+  if (selected === "Process") return item.photoStatus === "Processing"
+  if (selected === "Complete") return item.photoStatus === "Complete"
+  return true
+})
+
   // ✅ Update time every minute
   useEffect(() => {
     const updateTime = () => {
@@ -163,7 +172,7 @@ const Dashboard = () => {
         </TouchableOpacity>
       </View>
 
-      <Text className="text-center mt-3 font-semibold">{item.time ?? "--"}</Text>
+      <Text className="text-center mt-3 font-semibold">Photo Status: {item.photoStatus ?? "--"}</Text>
     </TouchableOpacity>
   );
 
@@ -215,14 +224,23 @@ const Dashboard = () => {
             >
               <View className="flex-col items-center justify-center">
                 <Text className="text-black text-center font-semibold">{btn}</Text>
-                <Text className="text-gray-500 text-center text-sm">0</Text>
+                <Text className="text-gray-500 text-center text-sm">
+                  {
+                    appointments.filter((item) => {
+                      if (btn === "Pending") return item.photoStatus === "Pending"
+                      if (btn === "Process") return item.photoStatus === "Processing"
+                      if (btn === "Complete") return item.photoStatus === "Complete"
+                      return false
+                    }).length
+                  }
+                </Text>
               </View>
             </TouchableOpacity>
           ))}
         </View>
 
         <FlatList
-          data={appointments}
+          data={filteredAppointments}
           renderItem={renderCard}
           keyExtractor={(item, index) => item.id?.toString() || index.toString()}
           numColumns={2}

@@ -1,15 +1,6 @@
 // Startconsultation.tsx
 import React, { useEffect, useState } from 'react'
-import {
-  View,
-  Text,
-  Image,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-  Platform,
-} from 'react-native'
+import {View,Text,Image,TouchableOpacity,ScrollView,Alert,ActivityIndicator,Platform,} from 'react-native'
 import Navbar from '../components/Navbar'
 import * as ImagePicker from 'expo-image-picker'
 import { Camera } from 'lucide-react-native'
@@ -50,6 +41,7 @@ interface TreatmentItem {
 type RootStackParamList = {
   ConcentFill: { id: string; consultationId: number }
   Startconsultation: { customerId: string; consultationId: number }
+  Profile: { id: string }     // ✅ Add this line
   StartTreatment: {
     customerId: string
     consultationId: number
@@ -252,16 +244,15 @@ const Startconsultation: React.FC = () => {
 
         {/* Buttons on the right */}
         <View className="flex-col gap-y-2 ml-auto">
-          <TouchableOpacity
-            className="bg-primary p-1 rounded-lg w-[130px] items-center justify-center"
-            onPress={() => {
-              // navigate to profile / consent / reports if you have screens
-              // navigation.navigate('ClientProfile', { customerId })
-              Alert.alert('Not implemented', 'Profile screen navigation not implemented in this snippet.')
-            }}
-          >
-            <Text className="text-white text-xs font-bold text-center">View Profile</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              className="bg-primary p-1 rounded-lg w-[130px] items-center justify-center"
+              onPress={() => {
+                navigation.navigate('Profile', { id: String(customerId) })  // ✅ Navigate to Profile
+              }}
+            >
+              <Text className="text-white text-xs font-bold text-center">View Profile</Text>
+            </TouchableOpacity>
+
 
           <TouchableOpacity
             className="bg-primary p-1 rounded-lg w-[130px] items-center justify-center"

@@ -92,7 +92,7 @@ const handleLogin = async () => {
     >
       <View className="flex-1 px-6 justify-center bg-black/40">
         <Text className="text-white text-2xl font-bold text-center mb-8">
-          Log in to your {"\n"} Account
+          Log In To Your {"\n"} Account
         </Text>
 
         <View className="bg-white rounded-xl px-4 py-3 mb-4 flex-row items-center">
