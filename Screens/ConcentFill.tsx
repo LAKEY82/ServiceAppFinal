@@ -106,20 +106,22 @@ const ConcentFill = () => {
           text: "Yes",
           onPress: async () => {
             try {
-              const htmlContent = `
-                <h2 style="text-align:center;">${form?.formName}</h2>
-                ${form?.questions.map(q => {
-                  const answer = answers[q.id] || '';
-                  if (q.inputType === 'text') {
-                    return `<p><strong>${q.questionText}</strong>: ${answer}</p>`;
-                  } else if (q.inputType === 'radio') {
-                    return `<p><strong>${q.questionText}</strong>: ${answer}</p>`;
-                  } else if (q.inputType === 'choice') {
-                    return `<p><strong>${q.questionText}</strong>: ${(answer as string[]).join(', ')}</p>`;
-                  }
-                  return '';
-                }).join('')}
-              `;
+const htmlContent = `
+  <h2 style="text-align:center;">${form?.formName}</h2>
+  ${form?.questions.map(q => {
+    const answer = answers[q.id] || '';
+    if (q.inputType === 'text') {
+      return `<p><strong>${q.questionText}</strong>: ${answer}</p>`;
+    } else if (q.inputType === 'radio') {
+      return `<p><strong>${q.questionText}</strong>: ${answer}</p>`;
+    } else if (q.inputType === 'choice') {
+      const choiceAnswers = Array.isArray(answer) ? answer : [answer].filter(Boolean);
+      return `<p><strong>${q.questionText}</strong>: ${choiceAnswers.join(', ')}</p>`;
+    }
+    return '';
+  }).join('')}
+`;
+
 
               const { uri } = await Print.printToFileAsync({ html: htmlContent });
               await Sharing.shareAsync(uri);

@@ -1,24 +1,12 @@
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  Platform,
-  Image,
-  FlatList,
-} from "react-native";
+import {View,Text,TextInput,TouchableOpacity,Platform,Image,FlatList,} from "react-native";
 import React, { useState, useEffect } from "react";
 import Navbar from "../components/Navbar";
-import {
-  useNavigation,
-  useRoute,
-  RouteProp,
-} from "@react-navigation/native";
+import {useNavigation,useRoute,RouteProp,} from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import api from "../API/api"; // ✅ import your axios instance
+import api from "../API/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// ✅ Correct types for navigation params
+// ✅ Navigation types
 type RootStackParamList = {
   Dashboard: {
     branchEmployeeId: number;
@@ -32,25 +20,23 @@ type RootStackParamList = {
   Profile: { id: string };
 };
 
-// ✅ Type for navigation
 type DashboardScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
   "Dashboard"
 >;
-
-// ✅ Type for route
 type DashboardRouteProp = RouteProp<RootStackParamList, "Dashboard">;
 
 const Dashboard = () => {
   const [currentTime, setCurrentTime] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
-  const [appointments, setAppointments] = useState<any[]>([]); // API data
+  const [appointments, setAppointments] = useState<any[]>([]);
   const [userData, setUserData] = useState<RootStackParamList["Dashboard"] | null>(null);
+  const [searchQuery, setSearchQuery] = useState(""); // ✅ search state
 
   const navigation = useNavigation<DashboardScreenNavigationProp>();
   const route = useRoute<DashboardRouteProp>();
 
-  // ✅ Fetch user data from params or AsyncStorage
+  // ✅ Fetch user data
   useEffect(() => {
     const loadUserData = async () => {
       if (route.params) {
@@ -62,48 +48,49 @@ const Dashboard = () => {
             setUserData(JSON.parse(storedData));
           } else {
             console.warn("No user data found, navigate to Login");
-            navigation.navigate("Login" as never); // fallback to Login
+            navigation.navigate("Login" as never);
           }
         } catch (error) {
-          console.error("Error loading user data from AsyncStorage:", error);
+          console.error("Error loading user data:", error);
         }
       }
     };
-
     loadUserData();
   }, [route.params, navigation]);
 
   // ✅ Fetch appointments API
   useEffect(() => {
     const fetchAppointments = async () => {
-      if (!userData) return; // wait for userData
+      if (!userData) return;
       try {
         const response = await api.get(
           `/TreatmentAppointment/consultation/${userData.branchEmployeeId}`
         );
         console.log("API Response:", response.data);
-        setAppointments(response.data); // store data in state
+        setAppointments(response.data);
       } catch (error: any) {
-        console.error(
-          "Error fetching appointments:",
-          error.response?.data || error.message
-        );
+        console.error("Error fetching appointments:", error.response?.data || error.message);
       }
     };
-
     fetchAppointments();
   }, [userData]);
 
-  // ✅ Add this derived variable right before render return
-const filteredAppointments = appointments.filter((item) => {
-  if (!selected) return true // show all by default if nothing selected
-  if (selected === "Pending") return item.photoStatus === "Pending"
-  if (selected === "Process") return item.photoStatus === "Processing"
-  if (selected === "Complete") return item.photoStatus === "Complete"
-  return true
-})
+  // ✅ Filter appointments by selected status
+  const statusFilteredAppointments = appointments.filter((item) => {
+    if (!selected) return true;
+    if (selected === "Pending") return item.photoStatus === "Pending";
+    if (selected === "Process") return item.photoStatus === "Processing";
+    if (selected === "Complete") return item.photoStatus === "Complete";
+    return true;
+  });
 
-  // ✅ Update time every minute
+  // ✅ Then filter again by search query (client name)
+  const filteredAppointments = statusFilteredAppointments.filter((item) => {
+    const fullName = `${item.customerFName ?? ""} ${item.customerLName ?? ""}`.toLowerCase();
+    return fullName.includes(searchQuery.toLowerCase());
+  });
+
+  // ✅ Update current time every minute
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
@@ -172,7 +159,9 @@ const filteredAppointments = appointments.filter((item) => {
         </TouchableOpacity>
       </View>
 
-      <Text className="text-center mt-3 font-semibold">Photo Status: {item.photoStatus ?? "--"}</Text>
+      <Text className="text-center mt-3 font-semibold">
+        Photo Status: {item.photoStatus ?? "--"}
+      </Text>
     </TouchableOpacity>
   );
 
@@ -192,19 +181,23 @@ const filteredAppointments = appointments.filter((item) => {
           <Text className="text-lg font-semibold text-primary">{currentTime}</Text>
         </View>
 
+        {/* ✅ Search bar */}
         <View className="bg-gray-100 rounded-xl px-3 py-2 mb-10">
           <TextInput
-            placeholder="Search"
+            placeholder="Search by client name"
             placeholderTextColor="#888"
             className="text-base text-black"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
           />
         </View>
 
+        {/* ✅ Filter Buttons */}
         <View className="flex-row justify-between mb-4">
           {buttons.map((btn, index) => (
             <TouchableOpacity
               key={index}
-              onPress={() => setSelected(btn)}
+              onPress={() => setSelected(selected === btn ? null : btn)}
               className={`px-4 py-4 rounded-lg w-[32%] bg-white h-20`}
               style={{
                 borderWidth: selected === btn ? 2 : 0,
@@ -227,10 +220,10 @@ const filteredAppointments = appointments.filter((item) => {
                 <Text className="text-gray-500 text-center text-sm">
                   {
                     appointments.filter((item) => {
-                      if (btn === "Pending") return item.photoStatus === "Pending"
-                      if (btn === "Process") return item.photoStatus === "Processing"
-                      if (btn === "Complete") return item.photoStatus === "Complete"
-                      return false
+                      if (btn === "Pending") return item.photoStatus === "Pending";
+                      if (btn === "Process") return item.photoStatus === "Processing";
+                      if (btn === "Complete") return item.photoStatus === "Complete";
+                      return false;
                     }).length
                   }
                 </Text>
@@ -239,6 +232,7 @@ const filteredAppointments = appointments.filter((item) => {
           ))}
         </View>
 
+        {/* ✅ Filtered + Searched List */}
         <FlatList
           data={filteredAppointments}
           renderItem={renderCard}

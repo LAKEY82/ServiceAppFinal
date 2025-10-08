@@ -178,7 +178,7 @@ const StartTreatment: React.FC = () => {
         }
       })
 
-      await api.post('/ConsultationPhoto/uploadAfter', formData, {
+      await api.post('/Treatment/Treatmentphoto-upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
 
