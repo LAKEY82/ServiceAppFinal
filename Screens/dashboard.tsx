@@ -1,12 +1,19 @@
-import {View,Text,TextInput,TouchableOpacity,Platform,Image,FlatList,} from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Platform,
+  Image,
+  FlatList,
+} from "react-native";
 import React, { useState, useEffect } from "react";
 import Navbar from "../components/Navbar";
-import {useNavigation,useRoute,RouteProp,} from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import api from "../API/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// ✅ Navigation types
 type RootStackParamList = {
   Dashboard: {
     branchEmployeeId: number;
@@ -27,16 +34,17 @@ type DashboardScreenNavigationProp = NativeStackNavigationProp<
 type DashboardRouteProp = RouteProp<RootStackParamList, "Dashboard">;
 
 const Dashboard = () => {
-  const [currentTime, setCurrentTime] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
-  const [appointments, setAppointments] = useState<any[]>([]);
+  const [consultations, setConsultations] = useState<any[]>([]);
+  const [treatments, setTreatments] = useState<any[]>([]);
   const [userData, setUserData] = useState<RootStackParamList["Dashboard"] | null>(null);
-  const [searchQuery, setSearchQuery] = useState(""); // ✅ search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [viewType, setViewType] = useState<"consultation" | "treatment">("consultation");
 
   const navigation = useNavigation<DashboardScreenNavigationProp>();
   const route = useRoute<DashboardRouteProp>();
 
-  // ✅ Fetch user data
+  // Load user data
   useEffect(() => {
     const loadUserData = async () => {
       if (route.params) {
@@ -47,7 +55,6 @@ const Dashboard = () => {
           if (storedData) {
             setUserData(JSON.parse(storedData));
           } else {
-            console.warn("No user data found, navigate to Login");
             navigation.navigate("Login" as never);
           }
         } catch (error) {
@@ -58,60 +65,53 @@ const Dashboard = () => {
     loadUserData();
   }, [route.params, navigation]);
 
-  // ✅ Fetch appointments API
+  // Fetch consultations + treatments
   useEffect(() => {
-    const fetchAppointments = async () => {
+    const fetchData = async () => {
       if (!userData) return;
       try {
-        const response = await api.get(
-          `/TreatmentAppointment/consultation/${userData.branchEmployeeId}`
-        );
-        console.log("API Response:", response.data);
-        setAppointments(response.data);
-      } catch (error: any) {
-        console.error("Error fetching appointments:", error.response?.data || error.message);
+        const [consultationRes, treatmentRes] = await Promise.all([
+          api.get(`/TreatmentAppointment/consultation/${userData.branchEmployeeId}`),
+          api.get(`/TreatmentAppointment/treatment/All`),
+        ]);
+
+        setConsultations(consultationRes.data || []);
+        setTreatments(treatmentRes.data || []);
+      } catch (err: any) {
+        console.error("Error fetching appointments:", err?.response?.data || err?.message || err);
       }
     };
-    fetchAppointments();
+    fetchData();
   }, [userData]);
 
-  // ✅ Filter appointments by selected status
-  const statusFilteredAppointments = appointments.filter((item) => {
+  // ✅ Now visible list correctly follows toggle
+  const visibleList = viewType === "consultation" ? consultations : treatments;
+
+  // Filter by selected status
+  const statusFilteredAppointments = visibleList.filter((item) => {
     if (!selected) return true;
-    if (selected === "Pending") return item.photoStatus === "Pending";
+    if (selected === "Pending")
+      return item.photoStatus === "Pending" || item.afterPhotoStatus === "Pending";
     if (selected === "Process") return item.photoStatus === "Processing";
     if (selected === "Complete") return item.photoStatus === "Complete";
     return true;
   });
 
-  // ✅ Then filter again by search query (client name)
+  // Search filter
   const filteredAppointments = statusFilteredAppointments.filter((item) => {
     const fullName = `${item.customerFName ?? ""} ${item.customerLName ?? ""}`.toLowerCase();
     return fullName.includes(searchQuery.toLowerCase());
   });
 
-  // ✅ Update current time every minute
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      const hours = now.getHours().toString().padStart(2, "0");
-      const minutes = now.getMinutes().toString().padStart(2, "0");
-      setCurrentTime(`${hours}:${minutes}`);
-    };
-
-    updateTime();
-    const interval = setInterval(updateTime, 60000);
-    return () => clearInterval(interval);
-  }, []);
-
   const buttons = ["Pending", "Process", "Complete"];
 
+  // Card renderer
   const renderCard = ({ item }: { item: any }) => (
     <TouchableOpacity
       className="bg-secondary rounded-2xl p-4 m-1"
       onPress={() =>
         navigation.navigate("ConcentFill", {
-          id: item.customerId.toString(),
+          id: item.customerId?.toString() ?? "",
           consultationId: item.consultationId ?? 1,
         })
       }
@@ -124,9 +124,7 @@ const Dashboard = () => {
             shadowOpacity: 0.25,
             shadowRadius: 3.84,
           },
-          android: {
-            elevation: 3,
-          },
+          android: { elevation: 3 },
         }),
       }}
     >
@@ -135,33 +133,41 @@ const Dashboard = () => {
           source={{ uri: item.photo ?? "https://i.sstatic.net/l60Hf.png" }}
           className="w-16 h-16 rounded-full mb-2"
         />
-
         {item.customerType === "VIP" && (
           <View className="absolute top-2 right-2 bg-red-500 px-2 py-1 rounded-full">
             <Text className="text-white text-xs font-bold">VIP</Text>
           </View>
         )}
-
-        <Text className="text-base font-bold">
+        <Text className="text-base font-bold text-center">
           {item.customerFName ?? "Unknown"} {item.customerLName ?? ""}
         </Text>
-        <Text className="text-gray-700">
-          {item.appointmentType ?? "No service"}
+        <Text className="text-gray-700 text-center">
+          {item.appointmentType ?? viewType}
         </Text>
-
         <TouchableOpacity
           onPress={() =>
-            navigation.navigate("Profile", { id: item.customerId.toString() })
+            navigation.navigate("Profile", { id: item.customerId?.toString() ?? "" })
           }
           className="bg-primary px-3 py-2 rounded-lg mt-2"
         >
           <Text className="text-white text-sm">View Profile</Text>
         </TouchableOpacity>
       </View>
-
-      <Text className="text-center mt-3 font-semibold">
-        Photo Status: {item.photoStatus ?? "--"}
-      </Text>
+      <View className="mt-3">
+        <Text className="text-center font-semibold">
+          Status: {item.photoStatus ?? item.afterPhotoStatus ?? "--"}
+        </Text>
+        {item.treatmentAmount && (
+          <Text className="text-center text-sm text-gray-700">
+            Amount: Rs. {item.treatmentAmount}
+          </Text>
+        )}
+        {item.startTime && item.endTime && (
+          <Text className="text-center text-sm text-gray-500">
+            {item.startTime} - {item.endTime}
+          </Text>
+        )}
+      </View>
     </TouchableOpacity>
   );
 
@@ -176,12 +182,49 @@ const Dashboard = () => {
   return (
     <View className="flex-1 bg-white">
       <View className="flex-1 mt-[20%] mx-[5%]">
+        {/* Header with simple toggle */}
         <View className="flex-row justify-between items-center mb-4">
           <Text className="text-lg font-bold">Hello {userData.userName} 👋</Text>
-          <Text className="text-lg font-semibold text-primary">{currentTime}</Text>
+
+          {/* Simple toggle buttons */}
+          <View className="flex-row bg-[#E0F7FF] rounded-full p-1 w-[120px] h-[46px]">
+            <TouchableOpacity
+              onPress={() => setViewType("consultation")}
+              className={`flex-1 justify-center items-center rounded-full ${
+                viewType === "consultation" ? "bg-[#0077A8]" : ""
+              }`}
+            >
+              <Text
+                style={{
+                  color: viewType === "consultation" ? "#fff" : "#002131",
+                  fontWeight: "700",
+                  fontSize: 16,
+                }}
+              >
+                C
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setViewType("treatment")}
+              className={`flex-1 justify-center items-center rounded-full ${
+                viewType === "treatment" ? "bg-[#0077A8]" : ""
+              }`}
+            >
+              <Text
+                style={{
+                  color: viewType === "treatment" ? "#fff" : "#002131",
+                  fontWeight: "700",
+                  fontSize: 16,
+                }}
+              >
+                T
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* ✅ Search bar */}
+        {/* Search */}
         <View className="bg-gray-100 rounded-xl px-3 py-2 mb-10">
           <TextInput
             placeholder="Search by client name"
@@ -192,7 +235,7 @@ const Dashboard = () => {
           />
         </View>
 
-        {/* ✅ Filter Buttons */}
+        {/* Status Filters */}
         <View className="flex-row justify-between mb-4">
           {buttons.map((btn, index) => (
             <TouchableOpacity
@@ -209,40 +252,35 @@ const Dashboard = () => {
                     shadowOpacity: 0.25,
                     shadowRadius: 3.84,
                   },
-                  android: {
-                    elevation: 5,
-                  },
+                  android: { elevation: 5 },
                 }),
               }}
             >
               <View className="flex-col items-center justify-center">
                 <Text className="text-black text-center font-semibold">{btn}</Text>
                 <Text className="text-gray-500 text-center text-sm">
-                  {
-                    appointments.filter((item) => {
-                      if (btn === "Pending") return item.photoStatus === "Pending";
-                      if (btn === "Process") return item.photoStatus === "Processing";
-                      if (btn === "Complete") return item.photoStatus === "Complete";
-                      return false;
-                    }).length
-                  }
+                  {(viewType === "consultation" ? consultations : treatments).filter((item) => {
+                    if (btn === "Pending")
+                      return item.photoStatus === "Pending" || item.afterPhotoStatus === "Pending";
+                    if (btn === "Process") return item.photoStatus === "Processing";
+                    if (btn === "Complete") return item.photoStatus === "Complete";
+                    return false;
+                  }).length}
                 </Text>
               </View>
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* ✅ Filtered + Searched List */}
+        {/* Appointments */}
         <FlatList
           data={filteredAppointments}
           renderItem={renderCard}
-          keyExtractor={(item, index) => item.id?.toString() || index.toString()}
+          keyExtractor={(item, index) => `${item.customerId ?? item.id ?? index}-${index}`}
           numColumns={2}
           contentContainerStyle={{ paddingBottom: 100 }}
           ListEmptyComponent={
-            <Text className="text-center text-gray-500 mt-10">
-              No appointments found
-            </Text>
+            <Text className="text-center text-gray-500 mt-10">No appointments found</Text>
           }
         />
       </View>
