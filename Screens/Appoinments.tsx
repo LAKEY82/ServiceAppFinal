@@ -101,9 +101,9 @@ const Appoinments = () => {
   const balance = subtotal - discount;
 
   return (
-    <View className="flex-1 bg-white">
+    <View className="flex-1 bg-white mt-[10%]">
       {/* Top Card */}
-      <View className="w-[95%] h-[15%] bg-secondary gap-x-6 p-5 mt-[15%] mx-auto flex-row items-center rounded-xl space-x-4">
+      {/* <View className="w-[95%] h-[15%] bg-secondary gap-x-6 p-5 mt-[15%] mx-auto flex-row items-center rounded-xl space-x-4">
         <Image source={require("../assets/pp.jpg")} className="w-16 h-16 rounded-full" />
         <View className="flex-col flex-1">
           <Text className="text-black text-sm font-bold">Mr. Jane Cooper</Text>
@@ -111,7 +111,7 @@ const Appoinments = () => {
           <Text className="font-medium text-xs">10:30 AM - 11:30 AM</Text>
           <Text className="font-medium text-xs">Treatment: Facial</Text>
         </View>
-      </View>
+      </View> */}
 
       <ScrollView className="flex-1 px-4 mt-4 mb-16">
         {/* Treatments Table */}

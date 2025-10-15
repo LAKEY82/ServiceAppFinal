@@ -23,8 +23,14 @@ type RootStackParamList = {
     userId: number;
     userName: string;
   };
-  ConcentFill: { id: string; consultationId: number };
+  ConcentFill: {
+    id: string;
+    consultationId: number;
+    appointmentType: string;
+    treatmentId: string;
+  };
   Profile: { id: string };
+  StartTreatment: { customerId: string; consultationId: number };
 };
 
 type DashboardScreenNavigationProp = NativeStackNavigationProp<
@@ -39,7 +45,9 @@ const Dashboard = () => {
   const [treatments, setTreatments] = useState<any[]>([]);
   const [userData, setUserData] = useState<RootStackParamList["Dashboard"] | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [viewType, setViewType] = useState<"consultation" | "treatment">("consultation");
+  const [viewType, setViewType] = useState<"consultation" | "treatment">(
+    "consultation"
+  );
 
   const navigation = useNavigation<DashboardScreenNavigationProp>();
   const route = useRoute<DashboardRouteProp>();
@@ -65,56 +73,78 @@ const Dashboard = () => {
     loadUserData();
   }, [route.params, navigation]);
 
-  // Fetch consultations + treatments
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!userData) return;
-      try {
-        const [consultationRes, treatmentRes] = await Promise.all([
-          api.get(`/TreatmentAppointment/consultation/${userData.branchEmployeeId}`),
-          api.get(`/TreatmentAppointment/treatment/All`),
-        ]);
+// Fetch consultations + treatments
+useEffect(() => {
+  const fetchData = async () => {
+    if (!userData) return;
+    try {
+      const [consultationRes, treatmentRes] = await Promise.all([
+        api.get(`/TreatmentAppointment/consultation/${userData.branchEmployeeId}`),
+        api.get(`/TreatmentAppointment/treatment/All`),
+      ]);
 
-        setConsultations(consultationRes.data || []);
-        setTreatments(treatmentRes.data || []);
-      } catch (err: any) {
-        console.error("Error fetching appointments:", err?.response?.data || err?.message || err);
-      }
-    };
-    fetchData();
-  }, [userData]);
+      // ✅ Log full API responses for debugging
+      console.log("Consultation API Response:", consultationRes.data);
+      console.log("Treatment API Response:", treatmentRes.data);
 
-  // ✅ Now visible list correctly follows toggle
+      setConsultations(consultationRes.data || []);
+      setTreatments(treatmentRes.data || []);
+    } catch (err: any) {
+      console.error(
+        "Error fetching appointments:",
+        err?.response?.data || err?.message || err
+      );
+    }
+  };
+  fetchData();
+}, [userData]);
+
+
+  // ✅ Filter visible list based on toggle
   const visibleList = viewType === "consultation" ? consultations : treatments;
 
-  // Filter by selected status
-  const statusFilteredAppointments = visibleList.filter((item) => {
-    if (!selected) return true;
-    if (selected === "Pending")
-      return item.photoStatus === "Pending" || item.afterPhotoStatus === "Pending";
-    if (selected === "Process") return item.photoStatus === "Processing";
-    if (selected === "Complete") return item.photoStatus === "Complete";
-    return true;
-  });
+  // ✅ Filter by selected status
+const statusFilteredAppointments = visibleList.filter((item) => {
+  if (!selected) return true;
 
-  // Search filter
+  if (selected === "Pending") {
+    return item.photoStatus === "Pending" || item.afterPhotoStatus === "Pending";
+  }
+
+  if (selected === "Process") {
+    return item.photoStatus === "Processing" || item.afterPhotoStatus === "Processing";
+  }
+
+  if (selected === "Taken") {
+    return item.photoStatus === "Taken" || item.afterPhotoStatus === "Taken" || item.photoStatus === "taken";
+  }
+
+  return true;
+});
+
+
+  // ✅ Search filter
   const filteredAppointments = statusFilteredAppointments.filter((item) => {
-    const fullName = `${item.customerFName ?? ""} ${item.customerLName ?? ""}`.toLowerCase();
+    const fullName = `${item.customerFName ?? ""} ${
+      item.customerLName ?? ""
+    }`.toLowerCase();
     return fullName.includes(searchQuery.toLowerCase());
   });
 
-  const buttons = ["Pending", "Process", "Complete"];
+  const buttons = ["Pending", "Process", "Taken"];
 
-  // Card renderer
+  // ✅ Card renderer
   const renderCard = ({ item }: { item: any }) => (
     <TouchableOpacity
       className="bg-secondary rounded-2xl p-4 m-1"
-      onPress={() =>
+      onPress={() => {
         navigation.navigate("ConcentFill", {
           id: item.customerId?.toString() ?? "",
-          consultationId: item.consultationId ?? 1,
-        })
-      }
+          consultationId: item.departmentId ?? 1,
+          treatmentId: item.treatmentId ?? 24,
+          appointmentType: item.appointmentType ?? "Consultation",
+        });
+      }}
       style={{
         width: "48%",
         ...Platform.select({
@@ -146,13 +176,16 @@ const Dashboard = () => {
         </Text>
         <TouchableOpacity
           onPress={() =>
-            navigation.navigate("Profile", { id: item.customerId?.toString() ?? "" })
+            navigation.navigate("Profile", {
+              id: item.customerId?.toString() ?? "",
+            })
           }
           className="bg-primary px-3 py-2 rounded-lg mt-2"
         >
           <Text className="text-white text-sm">View Profile</Text>
         </TouchableOpacity>
       </View>
+
       <View className="mt-3">
         <Text className="text-center font-semibold">
           Status: {item.photoStatus ?? item.afterPhotoStatus ?? "--"}
@@ -182,11 +215,11 @@ const Dashboard = () => {
   return (
     <View className="flex-1 bg-white">
       <View className="flex-1 mt-[20%] mx-[5%]">
-        {/* Header with simple toggle */}
+        {/* Header with toggle */}
         <View className="flex-row justify-between items-center mb-4">
           <Text className="text-lg font-bold">Hello {userData.userName} 👋</Text>
 
-          {/* Simple toggle buttons */}
+          {/* Consultation/Treatment toggle */}
           <View className="flex-row bg-[#E0F7FF] rounded-full p-1 w-[120px] h-[46px]">
             <TouchableOpacity
               onPress={() => setViewType("consultation")}
@@ -224,7 +257,7 @@ const Dashboard = () => {
           </View>
         </View>
 
-        {/* Search */}
+        {/* Search Bar */}
         <View className="bg-gray-100 rounded-xl px-3 py-2 mb-10">
           <TextInput
             placeholder="Search by client name"
@@ -258,29 +291,38 @@ const Dashboard = () => {
             >
               <View className="flex-col items-center justify-center">
                 <Text className="text-black text-center font-semibold">{btn}</Text>
-                <Text className="text-gray-500 text-center text-sm">
-                  {(viewType === "consultation" ? consultations : treatments).filter((item) => {
-                    if (btn === "Pending")
-                      return item.photoStatus === "Pending" || item.afterPhotoStatus === "Pending";
-                    if (btn === "Process") return item.photoStatus === "Processing";
-                    if (btn === "Complete") return item.photoStatus === "Complete";
-                    return false;
-                  }).length}
-                </Text>
+<Text className="text-gray-500 text-center text-sm">
+  {
+    (viewType === "consultation" ? consultations : treatments).filter((item) => {
+      if (btn === "Pending")
+        return item.photoStatus === "Pending" || item.afterPhotoStatus === "Pending";
+      if (btn === "Process")
+        return item.photoStatus === "Processing" || item.afterPhotoStatus === "Processing";
+      if (btn === "Taken")
+        return item.photoStatus?.toLowerCase() === "taken" || item.afterPhotoStatus?.toLowerCase() === "taken";
+      return false;
+    }).length
+  }
+</Text>
+
               </View>
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* Appointments */}
+        {/* Appointments List */}
         <FlatList
           data={filteredAppointments}
           renderItem={renderCard}
-          keyExtractor={(item, index) => `${item.customerId ?? item.id ?? index}-${index}`}
+          keyExtractor={(item, index) =>
+            `${item.customerId ?? item.id ?? index}-${index}`
+          }
           numColumns={2}
           contentContainerStyle={{ paddingBottom: 100 }}
           ListEmptyComponent={
-            <Text className="text-center text-gray-500 mt-10">No appointments found</Text>
+            <Text className="text-center text-gray-500 mt-10">
+              No appointments found
+            </Text>
           }
         />
       </View>

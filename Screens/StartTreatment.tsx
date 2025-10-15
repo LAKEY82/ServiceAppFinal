@@ -43,34 +43,111 @@ interface RemarkItem {
 }
 
 type RootStackParamList = {
-  Startconsultation: { customerId: string; consultationId: number; photos: (string | null)[] }
-  AfterConsultation: { photos: (string | null)[] }
-  Appoinments: { customerId: string; photos: (string | null)[] }
+    StartTreatment: { 
+    formData: { customerId: string; consultationId: number; treatmentId: number; answers: any; photos?: (string | null)[] } 
+  }
+  Appointments: { customerId: string; photos?: (string | null)[] }
+  ConsentForm: { consultationId: number; customerId: string }
+  Profile: { id: string }
+  TreatmentConcentform: { Name:string,customerId: string; treatmentId: number }
 }
 
-type StartTreatmentRouteProp = RouteProp<RootStackParamList, 'Startconsultation'>
+type StartTreatmentRouteProp = RouteProp<RootStackParamList, 'StartTreatment'>
 
 /** ---------- Component ---------- **/
 const StartTreatment: React.FC = () => {
   const navigation = useNavigation<any>()
   const route = useRoute<StartTreatmentRouteProp>()
-  const { customerId, consultationId, photos: beforePhotosFromParams } = route.params
+const { formData } = route.params as { formData: { customerId: string; consultationId: number; treatmentId: number; answers: any } };
+const { customerId, consultationId, treatmentId, answers } = formData;
 
-  // 🔹 Console log customerId from params
+console.log("StartTreatment screen received customerId:", customerId);
+console.log("StartTreatment screen received consultationId:", consultationId);
+console.log("StartTreatment screen received treatmentId:", treatmentId);
+
   console.log('StartTreatment screen received customerId:', customerId)
-
+  console.log('StartTreatment screen received consultationId:', consultationId)
   const [afterPhotos, setAfterPhotos] = useState<(string | null)[]>(Array(6).fill(null))
   const [showTimerModal, setShowTimerModal] = useState(false)
   const [seconds, setSeconds] = useState(0)
   const [uploadingAfter, setUploadingAfter] = useState(false)
-
+ const [beforePhotos, setBeforePhotos] = useState<(string | null)[]>(Array(6).fill(null))
   const [treatments, setTreatments] = useState<TreatmentItem[]>([])
   const [remarks, setRemarks] = useState<RemarkItem[]>([])
   const [loadingTreatments, setLoadingTreatments] = useState(true)
   const [loadingRemarks, setLoadingRemarks] = useState(true)
   const [client, setClient] = useState<ClientProfile | null>(null)
   const [loadingClient, setLoadingClient] = useState(true)
+  const [uploadingBefore, setUploadingBefore] = useState(false)
+  const pickBeforePhoto = async (index: number) => {
+  const permission = await ImagePicker.requestCameraPermissionsAsync()
+  if (permission.status !== 'granted') {
+    return Alert.alert('Permission required', 'Camera permission is required!')
+  }
 
+  const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.7 })
+  if (!result.canceled && result.assets && result.assets.length > 0) {
+    const updated = [...beforePhotos]
+    updated[index] = result.assets[0].uri
+    setBeforePhotos(updated)
+  }
+}
+
+const handleUploadBeforePhotos = async () => {
+  console.log('🚀 handleUploadBeforePhotos called')
+  setUploadingBefore(true)
+
+  try {
+    console.log('CustomerId:', customerId)
+    console.log('TreatmentId:', treatmentId)
+    console.log('Before Photos Array:', beforePhotos)
+
+    const formData = new FormData()
+
+    // ✅ Must match backend keys (note: "treatmetId" typo kept intentionally)
+    formData.append('customerId', customerId)
+    formData.append('treatmetId', String(treatmentId)) // 👈 spelling matches backend
+
+    beforePhotos.forEach((uri, idx) => {
+      if (uri) {
+        const fileUri = Platform.OS === 'ios' ? uri.replace('file://', '') : uri
+        const photo = {
+          uri: fileUri,
+          type: 'image/jpeg',
+          name: `before_${idx}.jpg`,
+        }
+        console.log(`📸 Adding photo #${idx + 1}:`, photo)
+        formData.append('photos', photo as any)
+      } else {
+        console.log(`⚠️ Skipped photo #${idx + 1} because URI is invalid:`, uri)
+      }
+    })
+
+    console.log('🧾 FormData content preview:')
+    console.log('▶️ customerId :', customerId)
+    console.log('▶️ treatmetId :', treatmentId)
+    console.log('▶️ photos :', beforePhotos.filter(Boolean).length, 'photo(s)')
+
+    console.log('📡 Sending POST request to /Treatment/Treatmentphoto/Before/upload')
+
+    const response = await api.post(
+      '/Treatment/Treatmentphoto/Before/upload',
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }
+    )
+
+    console.log('✅ Upload successful:', response.data)
+    Alert.alert('Success', 'Before photos uploaded!')
+  } catch (err: any) {
+    console.error('❌ Upload failed:', err.response?.data || err.message)
+    Alert.alert('Upload failed', 'Failed to upload before photos.')
+  } finally {
+    console.log('🔚 handleUploadBeforePhotos finished')
+    setUploadingBefore(false)
+  }
+}
   /** ---------- Fetch client ---------- **/
   useEffect(() => {
     const fetchClient = async () => {
@@ -96,35 +173,24 @@ const StartTreatment: React.FC = () => {
     fetchClient()
   }, [customerId])
 
-  /** ---------- Fetch treatments ---------- **/
+  /** ---------- Fetch treatments & remarks ---------- **/
   useEffect(() => {
-    const fetchTreatments = async () => {
-      setLoadingTreatments(true)
-      try {
-        const res = await api.get(`/Consultation/treatments/${consultationId}`)
-        setTreatments(res.data ?? [])
-      } catch (err) {
-        console.error('Error fetching treatments:', err)
-      } finally {
-        setLoadingTreatments(false)
-      }
+  const fetchTreatments = async () => {
+    setLoadingTreatments(true)
+    try {
+      const res = await api.get(`/Treatment/${customerId}`)
+      console.log('Fetched treatments response:', res.data)
+      setTreatments(res.data ?? [])
+    } catch (err) {
+      console.error('Error fetching treatments:', err)
+    } finally {
+      setLoadingTreatments(false)
     }
+  }
 
-    const fetchRemarks = async () => {
-      setLoadingRemarks(true)
-      try {
-        const res = await api.get(`/Consultation/remarks/${consultationId}`)
-        setRemarks(res.data ?? [])
-      } catch (err) {
-        console.error('Error fetching remarks:', err)
-      } finally {
-        setLoadingRemarks(false)
-      }
-    }
+  fetchTreatments() // ✅ Call the function here
+}, [consultationId])
 
-    fetchTreatments()
-    fetchRemarks()
-  }, [consultationId])
 
   /** ---------- Timer logic ---------- **/
   useEffect(() => {
@@ -160,36 +226,50 @@ const StartTreatment: React.FC = () => {
   }
 
   /** ---------- Upload after photos ---------- **/
-  const handleUploadAfterPhotos = async () => {
-    setUploadingAfter(true)
-    try {
-      const formData = new FormData()
-      formData.append('CustomerId', customerId)
-      formData.append('ConsultationId', String(consultationId))
+const handleUploadAfterPhotos = async () => {
+  setUploadingAfter(true)
 
-      afterPhotos.forEach((uri, idx) => {
-        if (uri) {
-          const fileUri = Platform.OS === 'ios' ? uri.replace('file://', '') : uri
-          formData.append('Photos', {
-            uri: fileUri,
-            type: 'image/jpeg',
-            name: `after_${idx}.jpg`,
-          } as any)
+  try {
+    console.log('🚀 handleUploadAfterPhotos called')
+    console.log('CustomerId:', customerId)
+    console.log('TreatmentId:', treatmentId)
+    console.log('After Photos Array:', afterPhotos)
+
+    const formData = new FormData()
+    formData.append('customerId', customerId) // ✅ lowercase, matches backend
+    formData.append('treatmetId', String(treatmentId)) // ✅ matches backend typo
+
+    afterPhotos.forEach((uri, idx) => {
+      if (uri) {
+        const fileUri = Platform.OS === 'ios' ? uri.replace('file://', '') : uri
+        const fileObj = {
+          uri: fileUri,
+          type: 'image/jpeg',
+          name: `after_${idx}.jpg`,
         }
-      })
+        console.log(`📸 Adding photo #${idx + 1}:`, fileObj)
+        formData.append('photos', fileObj as any) // ✅ matches backend
+      } else {
+        console.log(`⚠️ Skipped photo #${idx + 1} because URI is invalid:`, uri)
+      }
+    })
 
-      await api.post('/Treatment/Treatmentphoto-upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
+    console.log('📡 Sending POST request to /Treatment/Treatmentphoto-upload')
+    const response = await api.post('/Treatment/Treatmentphoto-upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
 
-      Alert.alert('Success', 'After photos uploaded!')
-    } catch (err) {
-      console.error(err)
-      Alert.alert('Upload failed', 'Failed to upload after photos.')
-    } finally {
-      setUploadingAfter(false)
-    }
+    console.log('✅ Upload successful:', response.data)
+    Alert.alert('Success', 'After photos uploaded!')
+  } catch (err: any) {
+    console.error('❌ Upload failed:', err.response?.data || err.message)
+    Alert.alert('Upload failed', 'Failed to upload after photos.')
+  } finally {
+    setUploadingAfter(false)
+    console.log('🔚 handleUploadAfterPhotos finished')
   }
+}
+
 
   /** ---------- Header content ---------- **/
   const renderHeaderContent = () => {
@@ -208,6 +288,31 @@ const StartTreatment: React.FC = () => {
           {client.appointmentTime && <Text className="font-medium text-xs">{client.appointmentTime}</Text>}
           {client.treatmentName && <Text className="font-medium text-xs">Treatment: {client.treatmentName}</Text>}
         </View>
+                <View className="flex-col gap-y-2 ml-auto">
+                    <TouchableOpacity
+                      className="bg-primary p-1 rounded-lg w-[130px] items-center justify-center"
+                      onPress={() => {
+                        navigation.navigate('Profile', { id: String(customerId) })  // ✅ Navigate to Profile
+                      }}
+                    >
+                      <Text className="text-white text-xs font-bold text-center">View Profile</Text>
+                    </TouchableOpacity>
+        
+        
+          <TouchableOpacity
+            className="bg-primary p-1 rounded-lg w-[130px] items-center justify-center"
+            onPress={() => navigation.navigate('TreatmentConcentform', { customerId,treatmentId,Name:client.fullName })}
+          >
+            <Text className="text-white text-xs font-bold text-center">View Consent Form</Text>
+          </TouchableOpacity>
+        
+        <TouchableOpacity
+                    className="bg-primary p-1 rounded-lg w-[130px] items-center justify-center"
+                    onPress={() => navigation.navigate('Appoinments', { customerId })}
+                  >
+                    <Text className="text-white text-xs font-bold text-center">View Medical Reports</Text>
+                  </TouchableOpacity>
+                </View>
       </>
     )
   }
@@ -217,80 +322,77 @@ const StartTreatment: React.FC = () => {
       {/* Top Section */}
       <View className="w-[95%] h-[15%] bg-secondary p-5 mt-[15%] mx-auto flex-row items-center rounded-xl space-x-4">
         {renderHeaderContent()}
-
-        <View className="flex-col gap-y-2 ml-auto">
-          <TouchableOpacity
-            className="bg-primary p-1 rounded-lg w-[130px] items-center justify-center"
-            onPress={() => Alert.alert('Not implemented', 'Profile screen navigation not implemented.')}
-          >
-            <Text className="text-white text-xs font-bold text-center">View Profile</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            className="bg-primary p-1 rounded-lg w-[130px] items-center justify-center"
-            onPress={() => Alert.alert('Not implemented', 'Consent form navigation not implemented.')}
-          >
-            <Text className="text-white text-xs font-bold text-center">View Consent Form</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            className="bg-primary p-1 rounded-lg w-[130px] items-center justify-center"
-            onPress={() => Alert.alert('Not implemented', 'Medical reports navigation not implemented.')}
-          >
-            <Text className="text-white text-xs font-bold text-center">View Medical Reports</Text>
-          </TouchableOpacity>
-        </View>
       </View>
 
       {/* Scrollable Content */}
       <ScrollView className="flex-1 px-4 mt-4" contentContainerStyle={{ paddingBottom: 120 }}>
         {/* Treatment Plan */}
-        <View className="bg-[#F6F6F6] rounded-xl p-3 mb-4">
-          <View className="flex-row justify-between mb-2">
-            <Text className="font-bold text-sm">Treatment Plan</Text>
-            <Text className="font-bold text-sm">Date</Text>
-            <Text className="font-bold text-sm">Remark</Text>
-            <Text className="font-bold text-sm">Action</Text>
-          </View>
+{/* Treatment Plan */}
+{/* Treatment Plan */}
+<View className="bg-[#F6F6F6] rounded-xl p-3 mb-4">
+  <ScrollView horizontal showsHorizontalScrollIndicator={true}>
+    <View className="flex-col">
+      {/* Table Header */}
+      <View className="flex-row mb-2">
+        <Text className="font-bold text-sm w-40 text-center">Treatment Plan</Text>
+        <Text className="font-bold text-sm w-80 text-center">Remark</Text> {/* Wider */}
+        {/* <Text className="font-bold text-sm w-40 text-center">Action</Text> */}
+      </View>
 
-          {loadingTreatments ? (
-            <ActivityIndicator size="small" color="#000" />
-          ) : treatments.length > 0 ? (
-            treatments.map((plan, idx) => (
-              <View key={idx} className="flex-row items-center py-2 border-b border-gray-300">
-                <Text numberOfLines={1} ellipsizeMode="tail" style={{ width: 120 }} className="text-xs">
-                  {plan.tname ?? 'N/A'}
-                </Text>
-                <Text numberOfLines={1} ellipsizeMode="tail" style={{ width: 80 }} className="text-xs">
-                  {plan.date ?? '--'}
-                </Text>
-                <Text numberOfLines={1} ellipsizeMode="tail" style={{ width: 120 }} className="text-xs">
-                  {plan.remark ?? 'No remark'}
-                </Text>
-                <TouchableOpacity style={{ width: 60 }}>
-                  <Text className="text-primary text-xs font-bold">View Photo</Text>
-                </TouchableOpacity>
-              </View>
-            ))
-          ) : (
-            <Text className="text-xs text-gray-500">No treatments found</Text>
-          )}
-        </View>
+      {/* Table Rows */}
+      {loadingTreatments ? (
+        <ActivityIndicator size="small" color="#000" className="my-4" />
+      ) : treatments.length > 0 ? (
+        treatments.map((plan, idx) => (
+          <View
+            key={idx}
+            className="flex-row items-center border-b border-gray-300"
+            style={{ minHeight: 50 }}
+          >
+            <Text numberOfLines={1} ellipsizeMode="tail" className="text-xs w-[20%] ml-[5%] text-left">
+              {plan.tname ?? 'N/A'}
+            </Text>
+            <Text numberOfLines={1} ellipsizeMode="tail" className="text-xs ml-[35%] w-[20%] text-left">
+              {plan.description ?? 'No remark'}
+            </Text>
+            {/* <TouchableOpacity style={{ width: 40, alignItems: 'center' }}>
+              <Text className="text-primary text-xs font-bold">View Photo</Text>
+            </TouchableOpacity> */}
+          </View>
+        ))
+      ) : (
+        <Text className="text-xs text-gray-500 w-60 mt-4 text-center">No treatments found</Text>
+      )}
+    </View>
+  </ScrollView>
+</View>
+
+
 
         {/* Before Photos */}
-        <View className="bg-[#F6F6F6] rounded-xl p-3 mb-4">
-          <Text className="font-bold text-sm mb-2">Before Photos</Text>
-          <View className="flex-row flex-wrap justify-between">
-            {beforePhotosFromParams.map((uri, idx) => (
-              <View
-                key={idx}
-                className="w-[30%] h-24 bg-white mb-3 rounded-md items-center justify-center border border-gray-300"
-              >
-                {uri ? <Image source={{ uri }} className="w-full h-full rounded-md" /> : <Text className="text-xs">No Photo</Text>}
-              </View>
-            ))}
-          </View>
-        </View>
+{/* Before Photos */}
+<View className="bg-[#F6F6F6] rounded-xl p-3 mb-4">
+  <Text className="font-bold text-sm mb-2">Before Photos</Text>
+  <View className="flex-row flex-wrap justify-between">
+    {beforePhotos.map((uri, idx) => (
+      <TouchableOpacity
+        key={idx}
+        onPress={() => pickBeforePhoto(idx)}
+        className="w-[30%] h-24 bg-white mb-3 rounded-md items-center justify-center border border-gray-300"
+      >
+        {uri ? <Image source={{ uri }} className="w-full h-full rounded-md" /> : <Camera size={20} color="#666" />}
+      </TouchableOpacity>
+    ))}
+  </View>
+  <TouchableOpacity
+    className="bg-primary px-6 py-3 rounded-full items-center mt-3"
+    onPress={handleUploadBeforePhotos} // you’ll create this function next
+    disabled={uploadingBefore}
+  >
+    <Text className="text-white font-bold">{uploadingBefore ? 'Uploading...' : 'Upload Before Photos'}</Text>
+  </TouchableOpacity>
+</View>
+
 
         {/* After Photos */}
         <View className="bg-[#F6F6F6] rounded-xl p-3 mb-4">
@@ -314,29 +416,6 @@ const StartTreatment: React.FC = () => {
             <Text className="text-white font-bold">{uploadingAfter ? 'Uploading...' : 'Upload After Photos'}</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Remarks */}
-        <View className="bg-[#F6F6F6] rounded-xl p-3 mb-4">
-          <View className="flex-row justify-self-center gap-x-[15%] mb-2">
-            <Text className="font-bold text-sm">Date</Text>
-            <Text className="font-bold text-sm">Dr. Name</Text>
-            <Text className="font-bold text-sm">Remark</Text>
-          </View>
-          {loadingRemarks ? (
-            <ActivityIndicator size="small" color="#000" />
-          ) : remarks.length > 0 ? (
-            remarks.map((r, idx) => (
-              <View key={idx} className="flex-row justify-between py-1 border-b border-gray-300">
-                <Text className="text-xs">{r.date}</Text>
-                <Text className="text-xs">{r.doctorName}</Text>
-                <Text className="text-xs w-[50%]">{r.remark}</Text>
-              </View>
-            ))
-          ) : (
-            <Text className="text-xs text-gray-500">No remarks available</Text>
-          )}
-        </View>
-
         {/* Start Button */}
         <View className="flex-1 items-center mt-[10%]">
           <TouchableOpacity
@@ -362,10 +441,10 @@ const StartTreatment: React.FC = () => {
               className="bg-primary mt-6 px-6 py-3 rounded-full"
               onPress={() => {
                 setShowTimerModal(false)
-                navigation.navigate('Appoinments', { 
-                  customerId, 
-                  photos: beforePhotosFromParams.concat(afterPhotos) 
-                })
+                // navigation.navigate('Appoinments', { 
+                //   customerId, 
+                //   photos: [...beforePhotosFromParams, ...afterPhotos]
+                // })
               }}
             >
               <Text className="text-white font-bold">End</Text>

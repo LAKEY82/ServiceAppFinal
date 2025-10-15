@@ -1,5 +1,6 @@
 import { Text, View } from "react-native";
 import './global.css';
+// import { TailwindProvider } from 'nativewind';
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import Splash from "./Screens/Splash";
@@ -10,7 +11,10 @@ import Startconsultation from "./Screens/Startconsultation";
 import AfterConsultation from "./Screens/AfterConsultation";
 import Appoinments from "./Screens/Appoinments";
 import Profile from "./Screens/Profile";
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import StartTreatment from "./Screens/StartTreatment";
+import ConsentForm from "./Screens/ConsentForm";
+import TreatmentConcentForm from "./Screens/TreatmentConcentForm";
 export type RootStackParamList = {
   Splash: undefined;
   Login: undefined;
@@ -21,13 +25,15 @@ export type RootStackParamList = {
   Appoinments:undefined;
   Profile:undefined;
   StartTreatment:undefined;
-
+  ConsentForm:undefined;
+  TreatmentConcentform:undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
   return (
+    <SafeAreaProvider>
     <NavigationContainer>
       <Stack.Navigator>
         <Stack.Screen name="Splash" options={{ headerShown: false }} component={Splash} />
@@ -39,7 +45,10 @@ export default function App() {
         <Stack.Screen name="AfterConsultation" options={{ headerShown: false }} component={AfterConsultation} />
         <Stack.Screen name="Appoinments" options={{ headerShown: false }} component={Appoinments} />
         <Stack.Screen name="Profile" options={{ headerShown: false }} component={Profile} />
+        <Stack.Screen name="ConsentForm" options={{ headerShown: false }} component={ConsentForm} />
+        <Stack.Screen name="TreatmentConcentform" options={{ headerShown: false }} component={TreatmentConcentForm} />
       </Stack.Navigator>
     </NavigationContainer>
+    </SafeAreaProvider>
   );
 }

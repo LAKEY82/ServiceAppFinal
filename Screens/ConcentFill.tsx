@@ -15,7 +15,12 @@ import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import api from "../API/api"; // your axios instance
 
 type RootStackParamList = {
-  ConcentFill: { id: string; consultationId: number };
+  ConcentFill: {
+    id: string;
+    consultationId: number;
+    appointmentType: string;
+    treatmentId?: number; // 👈 added for treatment support
+  };
   Startconsultation: { formData: any };
 };
 
@@ -46,30 +51,47 @@ interface ConsentForm {
 const ConcentFill = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<ConcentFillRouteProp>();
-  const { id, consultationId } = route.params;
+  const { id, consultationId, appointmentType, treatmentId } = route.params;
+
+  console.log("The Params:", route.params);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<ConsentForm | null>(null);
 
   // Store user responses dynamically
-  const [answers, setAnswers] = useState<{
-    [questionId: number]: string | string[];
-  }>({});
+  const [answers, setAnswers] = useState<{ [questionId: number]: string | string[] }>({});
 
-  //Get API for the consultation form
+  // ✅ Dynamically load form based on appointmentType
   useEffect(() => {
     const fetchConsentForm = async () => {
       try {
         setLoading(true);
-        const response = await api.get(
-          `/ConcentForm/concent/consultation/${consultationId}`
-        );
+        let endpoint = "";
+
+        if (appointmentType === "Consultation") {
+          endpoint = `/ConcentForm/concent/consultation/${consultationId}`;
+        } else if (appointmentType === "Treatment") {
+          if (!treatmentId) {
+            setError("Treatment ID is missing for treatment consent form.");
+            setLoading(false);
+            return;
+          }
+          endpoint = `/ConcentForm/concent/treatment/${treatmentId}`;
+        } else {
+          setError("Invalid appointment type.");
+          setLoading(false);
+          return;
+        }
+
+        const response = await api.get(endpoint);
         const data: ConsentForm[] = response.data;
         console.log("Consent form data:", JSON.stringify(data, null, 2));
 
         if (data.length > 0) {
           setForm(data[0]); // take the first form
+        } else {
+          setError("No consent form found.");
         }
       } catch (err: any) {
         console.error(err);
@@ -78,8 +100,9 @@ const ConcentFill = () => {
         setLoading(false);
       }
     };
+
     fetchConsentForm();
-  }, [consultationId]);
+  }, [appointmentType, consultationId, treatmentId]);
 
   const handleTextChange = (questionId: number, text: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: text }));
@@ -104,7 +127,6 @@ const ConcentFill = () => {
   };
 
 const handleNext = async () => {
-  // ✅ Validation: Check if at least one question has an answer
   const hasAtLeastOneAnswer = Object.values(answers).some(
     (answer) =>
       (typeof answer === "string" && answer.trim() !== "") ||
@@ -112,124 +134,145 @@ const handleNext = async () => {
   );
 
   if (!hasAtLeastOneAnswer) {
-    Alert.alert(
-      "Incomplete Form",
-      "Please fill in at least one question before submitting."
-    );
-    return; // 🚫 Stop here — don’t proceed
+    Alert.alert("Incomplete Form", "Please fill in at least one question before submitting.");
+    return;
   }
 
-  // ✅ Proceed with the rest of the logic only if valid
-  Alert.alert(
-    "Download PDF?",
-    "Do you want to download the PDF before proceeding?",
-    [
-      {
-        text: "No",
-        onPress: async () => {
-          try {
-            const payload = Object.entries(answers)
-              .map(([questionId, answer]) => {
-                const question = form?.questions.find(
-                  (q) => q.id === Number(questionId)
-                );
-                if (!question) return null;
+Alert.alert("Download PDF?", "Do you want to download the PDF before proceeding?", [
+  {
+    text: "No",
+    onPress: async () => {
+      try {
+        const payload = Object.entries(answers)
+          .map(([questionId, answer]) => {
+            const question = form?.questions.find((q) => q.id === Number(questionId));
+            if (!question) return null;
 
-                return {
-                  mainQuestionId:
-                    question.parentQuestionId === null
-                      ? question.id
-                      : question.parentQuestionId,
-                  subQuestionId:
-                    question.parentQuestionId === null ? 0 : question.id,
-                  customerId: id,
-                  answerDescription: Array.isArray(answer)
-                    ? answer.join(", ")
-                    : answer,
-                  consultationId,
-                  enteredBy: 0,
-                };
-              })
-              .filter(Boolean);
+            const isChild = question.parentQuestionId != null;
 
-            console.log("Payload to send:", payload);
+            if (appointmentType === "Consultation") {
+              return {
+                mainQuestionId: isChild ? (question.parentQuestionId as number) : question.id,
+                subQuestionId: isChild ? question.id : 0,
+                customerId: id,
+                answerDescription: Array.isArray(answer) ? answer.join(", ") : answer,
+                consultationId,
+                enteredBy: 0,
+              };
+            } else if (appointmentType === "Treatment") {
+              return {
+                mainQuestionId: isChild ? (question.parentQuestionId as number) : question.id,
+                subQuestionId: isChild ? question.id : 0,
+                customerId: id,
+                answerDescription: Array.isArray(answer) ? answer.join(", ") : answer,
+                treatmentId,
+                enteredBy: 0,
+              };
+            }
 
-            await api.post("/Consultation/Consultation/Answers", payload);
+            return null;
+          })
+          .filter(Boolean);
 
-            navigation.navigate("Startconsultation", {
-              formData: { id, consultationId, answers },
-            });
-          } catch (err) {
-            console.error(err);
-            Alert.alert("Error", "Failed to submit answers");
-          }
-        },
-        style: "cancel",
-      },
-      {
-        text: "Yes",
-        onPress: async () => {
-          try {
-            const htmlContent = `
-              <h2 style="text-align:center;">${form?.formName}</h2>
-              ${form?.questions
-                .map((q) => {
-                  const answer = answers[q.id] || "";
-                  if (q.inputType === "text" || q.inputType === "radio") {
-                    return `<p><strong>${q.questionText}</strong>: ${answer}</p>`;
-                  } else if (q.inputType === "choice") {
-                    const choiceAnswers = Array.isArray(answer)
-                      ? answer
-                      : [answer].filter(Boolean);
-                    return `<p><strong>${q.questionText}</strong>: ${choiceAnswers.join(", ")}</p>`;
-                  }
-                  return "";
-                })
-                .join("")}
-            `;
+        const endpoint =
+          appointmentType === "Treatment"
+            ? "/ConcentForm/Treatment/Answers"
+            : "/Consultation/Consultation/Answers";
 
-            const { uri } = await Print.printToFileAsync({ html: htmlContent });
-            await Sharing.shareAsync(uri);
+        await api.post(endpoint, payload);
 
-            const payload = Object.entries(answers)
-              .map(([questionId, answer]) => {
-                const question = form?.questions.find(
-                  (q) => q.id === Number(questionId)
-                );
-                if (!question) return null;
+        // ✅ Correct navigation for consultation vs treatment
+        if (appointmentType === "Treatment") {
+          navigation.navigate("StartTreatment", { formData: { customerId: id, consultationId, treatmentId, answers } });
+        } else {
+          navigation.navigate("Startconsultation", { customerId: id, consultationId });
+        }
+      } catch (err) {
+        console.error(err);
+        Alert.alert("Error", "Failed to submit answers");
+      }
+    },
+    style: "cancel",
+  },
+  {
+    text: "Yes",
+    onPress: async () => {
+      try {
+        // Generate and share PDF
+        const htmlContent = `
+          <h2 style="text-align:center;">${form?.formName}</h2>
+          ${form?.questions
+            .map((q) => {
+              const answer = answers[q.id] || "";
+              if (q.inputType === "text" || q.inputType === "radio") {
+                return `<p><strong>${q.questionText}</strong>: ${answer}</p>`;
+              } else if (q.inputType === "choice") {
+                const choiceAnswers = Array.isArray(answer) ? answer : [answer].filter(Boolean);
+                return `<p><strong>${q.questionText}</strong>: ${choiceAnswers.join(", ")}</p>`;
+              }
+              return "";
+            })
+            .join("")}
+        `;
 
-                const isChild = question.parentQuestionId !== null;
+        const { uri } = await Print.printToFileAsync({ html: htmlContent });
+        await Sharing.shareAsync(uri);
 
-                return {
-                  mainQuestionId: isChild
-                    ? question.parentQuestionId
-                    : question.id,
-                  subQuestionId: isChild ? question.id : 0,
-                  customerId: id,
-                  answerDescription: Array.isArray(answer)
-                    ? answer.join(", ")
-                    : answer,
-                  consultationId,
-                  enteredBy: 1,
-                };
-              })
-              .filter(Boolean);
+        // Build payload again
+        const payload = Object.entries(answers)
+          .map(([questionId, answer]) => {
+            const question = form?.questions.find((q) => q.id === Number(questionId));
+            if (!question) return null;
 
-            await api.post("/Consultation/Consultation/Answers", payload);
+            const isChild = question.parentQuestionId != null;
 
-            navigation.navigate("Startconsultation", {
-              formData: { id, consultationId, answers },
-            });
-          } catch (err) {
-            console.log(err);
-            Alert.alert("Error", "Failed to generate PDF or submit answers");
-          }
-        },
-      },
-    ],
-    { cancelable: false }
-  );
+            if (appointmentType === "Consultation") {
+              return {
+                mainQuestionId: isChild ? (question.parentQuestionId as number) : question.id,
+                subQuestionId: isChild ? question.id : 0,
+                customerId: id,
+                answerDescription: Array.isArray(answer) ? answer.join(", ") : answer,
+                consultationId,
+                enteredBy: 1,
+              };
+            } else if (appointmentType === "Treatment") {
+              return {
+                mainQuestionId: isChild ? (question.parentQuestionId as number) : question.id,
+                subQuestionId: isChild ? question.id : 0,
+                customerId: id,
+                answerDescription: Array.isArray(answer) ? answer.join(", ") : answer,
+                treatmentId,
+                enteredBy: 1,
+              };
+            }
+
+            return null;
+          })
+          .filter(Boolean);
+
+        const endpoint =
+          appointmentType === "Treatment"
+            ? "/ConcentForm/Treatment/Answers"
+            : "/Consultation/Consultation/Answers";
+
+        await api.post(endpoint, payload);
+
+        // ✅ Correct navigation after PDF
+        if (appointmentType === "Treatment") {
+          navigation.navigate("StartTreatment", { formData: { customerId: id, consultationId, treatmentId, answers } });
+        } else {
+          navigation.navigate("Startconsultation", { customerId: id, consultationId });
+        }
+      } catch (err) {
+        console.error(err);
+        Alert.alert("Error", "Failed to generate PDF or submit answers");
+      }
+    },
+  },
+]);
+
 };
+
 
 
 
@@ -258,12 +301,9 @@ const handleNext = async () => {
         </Text>
 
         {form?.questions
-          .filter((q) => q.parentQuestionId === null) // top-level questions only
+          .filter((q) => q.parentQuestionId === null)
           .map((parent) => (
-            <View
-              key={parent.id}
-              className="bg-gray-50 p-4 rounded-2xl shadow mb-4"
-            >
+            <View key={parent.id} className="bg-gray-50 p-4 rounded-2xl shadow mb-4">
               <Text className="font-semibold mb-2">{parent.questionText}</Text>
 
               {parent.inputType === "text" && (
@@ -283,7 +323,9 @@ const handleNext = async () => {
                     onPress={() => handleRadioSelect(parent.id, opt.optionText)}
                   >
                     <View
-                      className={`w-5 h-5 border-2 rounded mr-2 ${answers[parent.id] === opt.optionText ? "bg-primary" : "bg-white"}`}
+                      className={`w-5 h-5 border-2 rounded mr-2 ${
+                        answers[parent.id] === opt.optionText ? "bg-primary" : "bg-white"
+                      }`}
                     />
                     <Text>{opt.optionText}</Text>
                   </TouchableOpacity>
@@ -294,98 +336,115 @@ const handleNext = async () => {
                   <TouchableOpacity
                     key={opt.id}
                     className="flex-row items-center mb-2"
-                    onPress={() =>
-                      handleChoiceToggle(parent.id, opt.optionText)
-                    }
+                    onPress={() => handleChoiceToggle(parent.id, opt.optionText)}
                   >
                     <View
-                      className={`w-5 h-5 border-2 rounded mr-2 ${((answers[parent.id] as string[]) || []).includes(opt.optionText) ? "bg-primary" : "bg-white"}`}
+                      className={`w-5 h-5 border-2 rounded mr-2 ${
+                        ((answers[parent.id] as string[]) || []).includes(opt.optionText)
+                          ? "bg-primary"
+                          : "bg-white"
+                      }`}
                     />
                     <Text>{opt.optionText}</Text>
                   </TouchableOpacity>
                 ))}
 
               {/* Render child questions */}
-              {form.questions
-                .filter((child) => child.parentQuestionId === parent.id)
-                .map((child) => {
-                  const parentAnswer = answers[parent.id];
+{form.questions
+  .filter((child) => child.parentQuestionId === parent.id)
+  .map((child) => {
+    const parentAnswer = answers[parent.id];
 
-                  // ✅ Only show if parentAnswer matches child's optionId
-                  const shouldShow =
-                    typeof parentAnswer === "string" &&
-                    parent.options?.some(
-                      (opt) =>
-                        opt.id === child.optionId &&
-                        opt.optionText === parentAnswer
-                    );
+    // ✅ Show logic:
+    // - If child.optionId exists → show only if user selected that specific option.
+    // - If child.optionId is null → show always.
+    let shouldShow = false;
 
-                  if (!shouldShow) return null;
+    if (child.optionId) {
+shouldShow =
+  typeof parentAnswer === "string" &&
+  (parent.options?.some(
+    (opt) =>
+      opt.id === child.optionId &&
+      opt.optionText === parentAnswer
+  ) || false);
+    } else {
+      shouldShow = true; // no specific option required → show always
+    }
 
-                  return (
-                    <View
-                      key={child.id}
-                      className="mt-4 pl-4 border-l-2 border-gray-300"
-                    >
-                      <Text className="font-semibold mb-2">
-                        {child.questionText}
-                      </Text>
+    if (!shouldShow) return null;
 
-                      {child.inputType === "text" && (
-                        <TextInput
-                          placeholder="Type your answer..."
-                          className="border rounded-lg px-3 py-2"
-                          value={(answers[child.id] as string) || ""}
-                          onChangeText={(text) =>
-                            handleTextChange(child.id, text)
-                          }
-                        />
-                      )}
+    return (
+      <View
+        key={child.id}
+        className="mt-4 pl-4 border-l-2 border-gray-300"
+      >
+        <Text className="font-semibold mb-2">
+          {child.questionText}
+        </Text>
 
-                      {child.inputType === "radio" &&
-                        child.options?.map((opt) => (
-                          <TouchableOpacity
-                            key={opt.id}
-                            className="flex-row items-center mb-2"
-                            onPress={() =>
-                              handleRadioSelect(child.id, opt.optionText)
-                            }
-                          >
-                            <View
-                              className={`w-5 h-5 border-2 rounded mr-2 ${answers[child.id] === opt.optionText ? "bg-primary" : "bg-white"}`}
-                            />
-                            <Text>{opt.optionText}</Text>
-                          </TouchableOpacity>
-                        ))}
+        {child.inputType === "text" && (
+          <TextInput
+            placeholder="Type your answer..."
+            className="border rounded-lg px-3 py-2"
+            value={(answers[child.id] as string) || ""}
+            onChangeText={(text) =>
+              handleTextChange(child.id, text)
+            }
+          />
+        )}
 
-                      {child.inputType === "choice" &&
-                        child.options?.map((opt) => (
-                          <TouchableOpacity
-                            key={opt.id}
-                            className="flex-row items-center mb-2"
-                            onPress={() =>
-                              handleChoiceToggle(child.id, opt.optionText)
-                            }
-                          >
-                            <View
-                              className={`w-5 h-5 border-2 rounded mr-2 ${((answers[child.id] as string[]) || []).includes(opt.optionText) ? "bg-primary" : "bg-white"}`}
-                            />
-                            <Text>{opt.optionText}</Text>
-                          </TouchableOpacity>
-                        ))}
-                    </View>
-                  );
-                })}
+        {child.inputType === "radio" &&
+          child.options?.map((opt) => (
+            <TouchableOpacity
+              key={opt.id}
+              className="flex-row items-center mb-2"
+              onPress={() =>
+                handleRadioSelect(child.id, opt.optionText)
+              }
+            >
+              <View
+                className={`w-5 h-5 border-2 rounded mr-2 ${
+                  answers[child.id] === opt.optionText
+                    ? "bg-primary"
+                    : "bg-white"
+                }`}
+              />
+              <Text>{opt.optionText}</Text>
+            </TouchableOpacity>
+          ))}
+
+        {child.inputType === "choice" &&
+          child.options?.map((opt) => (
+            <TouchableOpacity
+              key={opt.id}
+              className="flex-row items-center mb-2"
+              onPress={() =>
+                handleChoiceToggle(child.id, opt.optionText)
+              }
+            >
+              <View
+                className={`w-5 h-5 border-2 rounded mr-2 ${
+                  ((answers[child.id] as string[]) || []).includes(
+                    opt.optionText
+                  )
+                    ? "bg-primary"
+                    : "bg-white"
+                }`}
+              />
+              <Text>{opt.optionText}</Text>
+            </TouchableOpacity>
+          ))}
+
+      </View>
+    );
+  })}
+
             </View>
           ))}
 
-        <TouchableOpacity
-          onPress={handleNext}
-          className="bg-primary rounded-xl py-4 mb-10"
-        >
-          <Text className="text-white text-center font-semibold text-lg">
-            Submit →
-          </Text>
+        <TouchableOpacity onPress={handleNext} className="bg-primary rounded-xl py-4 mb-10">
+          <Text className="text-white text-center font-semibold text-lg">Submit →</Text>
         </TouchableOpacity>
       </ScrollView>
 

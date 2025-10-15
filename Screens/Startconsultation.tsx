@@ -56,6 +56,7 @@ type RootStackParamList = {
     consultationId?: number
     customerId?: string
   }
+  ConsentForm: { consultationId: number; customerId: string } // ✅ Add this
 }
 
 type StartConsultationRouteProp = RouteProp<RootStackParamList, 'Startconsultation'>
@@ -165,51 +166,58 @@ const Startconsultation: React.FC = () => {
   }
 
   // Upload photos and navigate to StartTreatment
-  const handleProceedToTreatment = async () => {
-    // If you want to require at least one photo, check here
-    // if (!photos.some(Boolean)) return Alert.alert('Please take at least one photo.')
-
-    setUploading(true)
-    try {
-      const formData = new FormData()
-      formData.append('CustomerId', String(customerId))
-      formData.append('ConsultationId', String(consultationId))
-
-      photos.forEach((photo, idx) => {
-        if (photo) {
-          // For iOS, sometimes need to strip file://
-          const uri = Platform.OS === 'ios' ? photo.replace('file://', '') : photo
-          formData.append('Photos', {
-            uri,
-            type: 'image/jpeg',
-            name: `photo_${idx}.jpg`,
-          } as any)
-        }
-      })
-
-      // Post to your upload endpoint (adjust path if needed)
-      const res = await api.post('/ConsultationPhoto/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
-
-      console.log('Upload response:', res.data)
-      Alert.alert('Success', 'Photos uploaded successfully.')
-
-      // Navigate to StartTreatment and pass all needed data as params
-      navigation.navigate('StartTreatment', {
-        customerId,
-        consultationId,
-        client,
-        treatments,
-        photos,
-      })
-    } catch (err: any) {
-      console.error('Upload failed:', err?.response?.data ?? err?.message ?? err)
-      Alert.alert('Upload failed', 'Failed to upload photos. Please try again.')
-    } finally {
-      setUploading(false)
-    }
+const handleProceedToTreatment = async () => {
+  if (!customerId || !consultationId) {
+    Alert.alert("Missing Data", "Customer ID or Consultation ID is missing.");
+    return;
   }
+
+  setUploading(true);
+  try {
+    const formData = new FormData();
+
+    // ✅ Append these EXACTLY as your backend expects
+    formData.append("CustomerId", String(customerId));
+    formData.append("ConsultationId", String(consultationId));
+
+    photos.forEach((photo, idx) => {
+      if (photo) {
+        const uri = Platform.OS === "ios" ? photo.replace("file://", "") : photo;
+        formData.append("Photos", {
+          uri,
+          name: `photo_${idx + 1}.jpg`,
+          type: "image/jpeg",
+        } as any);
+      }
+    });
+
+    console.log("Uploading with:", {
+      CustomerId: customerId,
+      ConsultationId: consultationId,
+      PhotosCount: photos.filter(Boolean).length,
+    });
+
+    const res = await api.post("/ConsultationPhoto/upload", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+
+    console.log("Upload response:", res.data);
+    Alert.alert("Success", "Photos uploaded successfully.");
+
+    navigation.navigate("Dashboard");
+  } catch (err: any) {
+    console.error(
+      "Upload failed:",
+      err?.response?.data ?? err?.message ?? err
+    );
+    Alert.alert("Upload failed", "Failed to upload photos. Please try again.");
+  } finally {
+    setUploading(false);
+  }
+};
+
 
   // Quick helper UI for header content
   const renderHeaderContent = () => {
@@ -256,21 +264,14 @@ const Startconsultation: React.FC = () => {
 
           <TouchableOpacity
             className="bg-primary p-1 rounded-lg w-[130px] items-center justify-center"
-            onPress={() => {
-              // If you have a consent form screen, navigate with required params
-              // navigation.navigate('ConcentFill', { id: String(customerId), consultationId })
-              Alert.alert('Not implemented', 'Consent form navigation not implemented in this snippet.')
-            }}
+            onPress={() => navigation.navigate('ConsentForm', { customerId,consultationId })}
           >
             <Text className="text-white text-xs font-bold text-center">View Consent Form</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
+<TouchableOpacity
             className="bg-primary p-1 rounded-lg w-[130px] items-center justify-center"
-            onPress={() => {
-              // navigation.navigate('MedicalReports', { customerId })
-              Alert.alert('Not implemented', 'Medical reports navigation not implemented in this snippet.')
-            }}
+            onPress={() => navigation.navigate('Appoinments', { customerId })}
           >
             <Text className="text-white text-xs font-bold text-center">View Medical Reports</Text>
           </TouchableOpacity>
@@ -279,38 +280,7 @@ const Startconsultation: React.FC = () => {
 
       {/* Body */}
       <ScrollView className="flex-1 px-4 mt-4" contentContainerStyle={{ paddingBottom: 120 }}>
-        {/* Treatments */}
-        <View className="bg-[#F6F6F6] rounded-xl p-3 mb-4">
-          <View className="flex-row justify-between mb-2">
-            <Text className="font-bold text-sm">Treatment Plan</Text>
-            <Text className="font-bold text-sm">Date</Text>
-            <Text className="font-bold text-sm">Remark</Text>
-            <Text className="font-bold text-sm">Action</Text>
-          </View>
 
-          {loadingTreatments ? (
-            <ActivityIndicator size="small" color="#000" />
-          ) : treatments.length > 0 ? (
-            treatments.map((plan, idx) => (
-              <View key={idx} className="flex-row items-center py-2 border-b border-gray-300">
-                <Text numberOfLines={1} ellipsizeMode="tail" style={{ width: 120 }} className="text-xs">
-                  {plan.tname ?? 'N/A'}
-                </Text>
-                <Text numberOfLines={1} ellipsizeMode="tail" style={{ width: 80 }} className="text-xs">
-                  {plan.date ?? '--'}
-                </Text>
-                <Text numberOfLines={1} ellipsizeMode="tail" style={{ width: 120 }} className="text-xs">
-                  {plan.remark ?? 'No remark'}
-                </Text>
-                <TouchableOpacity style={{ width: 60 }}>
-                  <Text className="text-primary text-xs font-bold">View Photo</Text>
-                </TouchableOpacity>
-              </View>
-            ))
-          ) : (
-            <Text className="text-xs text-gray-500">No treatments found</Text>
-          )}
-        </View>
 
         {/* Photo Grid */}
         <View className="bg-[#F6F6F6] rounded-xl p-3 mb-4">
@@ -342,7 +312,7 @@ const Startconsultation: React.FC = () => {
             {uploading ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <Text className="text-white font-bold">Upload & Start Treatment</Text>
+              <Text className="text-white font-bold">Upload Photos</Text>
             )}
           </TouchableOpacity>
         </View>
