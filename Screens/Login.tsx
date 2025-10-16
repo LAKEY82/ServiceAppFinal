@@ -16,6 +16,7 @@ type RootStackParamList = {
     token: string;
     userId: number;
     userName: string;
+    doctorId:string;
   };
 };
 
@@ -51,7 +52,7 @@ const handleLogin = async () => {
       console.log("Login success:", response.data);
 
       // Destructure the response values
-      const { branchEmployeeId, roleId, supervisorSmid, token, userId, userName } =
+      const { branchEmployeeId, roleId,doctorId, supervisorSmid, token, userId, userName } =
         response.data;
 
       // Save login response to AsyncStorage
@@ -68,6 +69,7 @@ const handleLogin = async () => {
         token,
         userId,
         userName,
+        doctorId,
       });
     } else {
       Alert.alert("Login Failed", response.data.message || "Invalid credentials");
