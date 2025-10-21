@@ -88,7 +88,7 @@ const Dashboard = () => {
 
       // Fetch treatments
       try {
-        const treatmentRes = await api.get(`/TreatmentAppointment/treatment/All`);
+        const treatmentRes = await api.get(`/TreatmentAppointment/treatment/${userData.doctorId}`);
         setTreatments(treatmentRes.data || []);
       } catch (err: any) {
         console.error("Error fetching treatments:", err?.response?.data || err?.message || err);

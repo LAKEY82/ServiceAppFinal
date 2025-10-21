@@ -204,7 +204,7 @@ const handleUploadBeforePhotos = async () => {
       if (interval) clearInterval(interval)
     }
   }, [showTimerModal])
-
+  //Timer time format for h:M:S
   const formatTime = (totalSeconds: number) => {
     const hrs = Math.floor(totalSeconds / 3600)
     const mins = Math.floor((totalSeconds % 3600) / 60)
@@ -431,12 +431,12 @@ const handleUploadAfterPhotos = async () => {
       <Modal visible={showTimerModal} transparent animationType="slide">
         <View className="flex-1 bg-black/50 items-center justify-center">
           <View className="bg-white p-6 rounded-xl w-[80%] items-center">
-            <Text className="text-lg font-bold mb-4">Facial treatment plan</Text>
+            <Text className="text-lg font-bold mb-4">Treatment plan</Text>
             <Text className="text-2xl font-bold">{formatTime(seconds)}</Text>
-            <Text className="text-xs text-center mt-2 mb-4">
+            {/*<Text className="text-xs text-center mt-2 mb-4">
               The task will be moved to the Completed section and will be closed.
             </Text>
-            <Text className="text-lg font-bold mb-4">Facial time: 1h</Text>
+            <Text className="text-lg font-bold mb-4">Facial time: 1h</Text>*/}
             <TouchableOpacity
               className="bg-primary mt-6 px-6 py-3 rounded-full"
               onPress={() => {

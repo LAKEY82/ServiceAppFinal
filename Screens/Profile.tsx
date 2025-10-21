@@ -1,13 +1,4 @@
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Image,
-  TextInput,
-  ScrollView,
-  ActivityIndicator,
-  Alert,
-} from "react-native";
+import {View,Text,TouchableOpacity,Image,TextInput,ScrollView,ActivityIndicator,Alert,} from "react-native";
 import React, { useState, useEffect } from "react";
 import Navbar from "../components/Navbar";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -145,6 +136,7 @@ const Profile = () => {
     setEditableData({ ...editableData, [key]: value });
   };
 
+  //insert data to be sent
   const handleSave = async () => {
     const payload = {
       salutation: editableData.salutation ?? "",
