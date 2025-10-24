@@ -1,18 +1,12 @@
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-} from "react-native";
+import {View,Text,TextInput,TouchableOpacity,ScrollView,Alert,ActivityIndicator,Modal,Image,} from "react-native";
 import React, { useState, useEffect } from "react";
 import Navbar from "../components/Navbar";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
+import * as ImagePicker from "expo-image-picker";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import api from "../API/api"; // your axios instance
+import { Camera, Image as ImageIcon } from "lucide-react-native";
 
 type RootStackParamList = {
   ConcentFill: {
@@ -26,7 +20,6 @@ type RootStackParamList = {
 
 type ConcentFillRouteProp = RouteProp<RootStackParamList, "ConcentFill">;
 
-//Define the data received from the api
 interface Option {
   id: number;
   optionText: string;
@@ -58,11 +51,13 @@ const ConcentFill = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<ConsentForm | null>(null);
-
-  // Store user responses dynamically
   const [answers, setAnswers] = useState<{ [questionId: number]: string | string[] }>({});
 
-  // ✅ Dynamically load form based on appointmentType
+  //The Modal and Image Upload States
+const [uploadModalVisible, setUploadModalVisible] = useState(false);
+const [selectedImages, setSelectedImages] = useState<string[]>([]);
+const [uploading, setUploading] = useState(false);
+
   useEffect(() => {
     const fetchConsentForm = async () => {
       try {
@@ -89,7 +84,7 @@ const ConcentFill = () => {
         console.log("Consent form data:", JSON.stringify(data, null, 2));
 
         if (data.length > 0) {
-          setForm(data[0]); // take the first form
+          setForm(data[0]);
         } else {
           setError("No consent form found.");
         }
@@ -107,6 +102,38 @@ const ConcentFill = () => {
   const handleTextChange = (questionId: number, text: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: text }));
   };
+
+  const openImagePicker = async () => {
+  try {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsMultipleSelection: true,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+    });
+    if (!result.canceled) {
+      const uris = result.assets.map((asset) => asset.uri);
+      setSelectedImages((prev) => [...prev, ...uris]);
+    }
+  } catch (error) {
+    console.error(error);
+    Alert.alert("Error", "Failed to pick images");
+  }
+};
+
+const openCamera = async () => {
+  try {
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+    });
+    if (!result.canceled) {
+      setSelectedImages((prev) => [...prev, result.assets[0].uri]);
+    }
+  } catch (error) {
+    console.error(error);
+    Alert.alert("Error", "Failed to open camera");
+  }
+};
 
   const handleRadioSelect = (questionId: number, option: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: option }));
@@ -126,155 +153,111 @@ const ConcentFill = () => {
     });
   };
 
-const handleNext = async () => {
-  const hasAtLeastOneAnswer = Object.values(answers).some(
-    (answer) =>
-      (typeof answer === "string" && answer.trim() !== "") ||
-      (Array.isArray(answer) && answer.length > 0)
-  );
-
-  if (!hasAtLeastOneAnswer) {
-    Alert.alert("Incomplete Form", "Please fill in at least one question before submitting.");
+  //To pick multiple images in the concent form
+const uploadPhotos = async () => {
+  if (selectedImages.length === 0) {
+    Alert.alert("No photos selected", "Please choose at least one photo.");
     return;
   }
 
-Alert.alert("Download PDF?", "Do you want to download the PDF before proceeding?", [
-  {
-    text: "No",
-    onPress: async () => {
-      try {
-        const payload = Object.entries(answers)
-          .map(([questionId, answer]) => {
-            const question = form?.questions.find((q) => q.id === Number(questionId));
-            if (!question) return null;
+  try {
+    setUploading(true);
 
-            const isChild = question.parentQuestionId != null;
+    // Just simulate upload delay
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
-            if (appointmentType === "Consultation") {
-              return {
-                mainQuestionId: isChild ? (question.parentQuestionId as number) : question.id,
-                subQuestionId: isChild ? question.id : 0,
-                customerId: id,
-                answerDescription: Array.isArray(answer) ? answer.join(", ") : answer,
-                consultationId,
-                enteredBy: 0,
-              };
-            } else if (appointmentType === "Treatment") {
-              return {
-                mainQuestionId: isChild ? (question.parentQuestionId as number) : question.id,
-                subQuestionId: isChild ? question.id : 0,
-                customerId: id,
-                answerDescription: Array.isArray(answer) ? answer.join(", ") : answer,
-                treatmentId,
-                enteredBy: 0,
-              };
-            }
+    Alert.alert("Success", "Photos selected successfully!");
 
-            return null;
-          })
-          .filter(Boolean);
+    setUploadModalVisible(false);
+    setSelectedImages([]);
 
-        const endpoint =
-          appointmentType === "Treatment"
-            ? "/ConcentForm/Treatment/Answers"
-            : "/Consultation/Consultation/Answers";
-
-        await api.post(endpoint, payload);
-
-        // ✅ Correct navigation for consultation vs treatment
-        if (appointmentType === "Treatment") {
-          navigation.navigate("StartTreatment", { formData: { customerId: id, consultationId, treatmentId, answers } });
-        } else {
-          navigation.navigate("Startconsultation", { customerId: id, consultationId });
-        }
-      } catch (err) {
-        console.error(err);
-        Alert.alert("Error", "Failed to submit answers");
-      }
-    },
-    style: "cancel",
-  },
-  {
-    text: "Yes",
-    onPress: async () => {
-      try {
-        // Generate and share PDF
-        const htmlContent = `
-          <h2 style="text-align:center;">${form?.formName}</h2>
-          ${form?.questions
-            .map((q) => {
-              const answer = answers[q.id] || "";
-              if (q.inputType === "text" || q.inputType === "radio") {
-                return `<p><strong>${q.questionText}</strong>: ${answer}</p>`;
-              } else if (q.inputType === "choice") {
-                const choiceAnswers = Array.isArray(answer) ? answer : [answer].filter(Boolean);
-                return `<p><strong>${q.questionText}</strong>: ${choiceAnswers.join(", ")}</p>`;
-              }
-              return "";
-            })
-            .join("")}
-        `;
-
-        const { uri } = await Print.printToFileAsync({ html: htmlContent });
-        await Sharing.shareAsync(uri);
-
-        // Build payload again
-        const payload = Object.entries(answers)
-          .map(([questionId, answer]) => {
-            const question = form?.questions.find((q) => q.id === Number(questionId));
-            if (!question) return null;
-
-            const isChild = question.parentQuestionId != null;
-
-            if (appointmentType === "Consultation") {
-              return {
-                mainQuestionId: isChild ? (question.parentQuestionId as number) : question.id,
-                subQuestionId: isChild ? question.id : 0,
-                customerId: id,
-                answerDescription: Array.isArray(answer) ? answer.join(", ") : answer,
-                consultationId,
-                enteredBy: 1,
-              };
-            } else if (appointmentType === "Treatment") {
-              return {
-                mainQuestionId: isChild ? (question.parentQuestionId as number) : question.id,
-                subQuestionId: isChild ? question.id : 0,
-                customerId: id,
-                answerDescription: Array.isArray(answer) ? answer.join(", ") : answer,
-                treatmentId,
-                enteredBy: 1,
-              };
-            }
-
-            return null;
-          })
-          .filter(Boolean);
-
-        const endpoint =
-          appointmentType === "Treatment"
-            ? "/ConcentForm/Treatment/Answers"
-            : "/Consultation/Consultation/Answers";
-
-        await api.post(endpoint, payload);
-
-        // ✅ Correct navigation after PDF
-        if (appointmentType === "Treatment") {
-          navigation.navigate("StartTreatment", { formData: { customerId: id, consultationId, treatmentId, answers } });
-        } else {
-          navigation.navigate("Startconsultation", { customerId: id, consultationId });
-        }
-      } catch (err) {
-        console.error(err);
-        Alert.alert("Error", "Failed to generate PDF or submit answers");
-      }
-    },
-  },
-]);
-
+    if (appointmentType === "Treatment") {
+      navigation.navigate("StartTreatment", {
+        formData: { customerId: id, consultationId, treatmentId },
+      });
+    } else {
+      navigation.navigate("Startconsultation", {
+        customerId: id,
+        consultationId,
+      });
+    }
+  } catch (error) {
+    console.error(error);
+    Alert.alert("Error", "Something went wrong while processing photos");
+  } finally {
+    setUploading(false);
+  }
 };
 
+  const handleDownloadPDF = async () => {
+    try {
+      if (!form) {
+        Alert.alert("Error", "Form not loaded yet.");
+        return;
+      }
 
+      const date = new Date().toLocaleDateString();
 
+      const htmlContent = `
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <style>
+              body { font-family: 'Helvetica'; margin: 40px; color: #333; line-height: 1.6; }
+              h1 { text-align: center; color: #0D6EFD; margin-bottom: 10px; }
+              .question { margin-bottom: 15px; }
+              .answer { margin-left: 10px; padding: 8px 10px; border: 1px solid #ccc; border-radius: 6px; background: #fafafa; }
+              .not-answered { color: #888; font-style: italic; }
+            </style>
+          </head>
+          <body>
+            <h1>${form.formName}</h1>
+            <div>Customer ID: ${id}</div>
+            <div>Consultation ID: ${consultationId}</div>
+            ${treatmentId ? `<div>Treatment ID: ${treatmentId}</div>` : ""}
+            <div>Date: ${date}</div>
+            ${form.questions
+              .map((q, i) => {
+                const answer = answers[q.id];
+                let displayAnswer = "";
+
+                if (q.inputType === "text") {
+                  displayAnswer =
+                    answer && typeof answer === "string" && answer.trim() !== ""
+                      ? answer
+                      : "<span class='not-answered'>Not answered</span>";
+                } else if (q.inputType === "radio") {
+                  displayAnswer =
+                    typeof answer === "string"
+                      ? answer
+                      : "<span class='not-answered'>Not selected</span>";
+                } else if (q.inputType === "choice") {
+                  const choiceAnswers = Array.isArray(answer) ? answer : [];
+                  displayAnswer =
+                    choiceAnswers.length > 0
+                      ? choiceAnswers.join(", ")
+                      : "<span class='not-answered'>None selected</span>";
+                }
+
+                return `
+                  <div class="question">
+                    <strong>${i + 1}. ${q.questionText}</strong>
+                    <div class="answer">${displayAnswer}</div>
+                  </div>
+                `;
+              })
+              .join("")}
+          </body>
+        </html>
+      `;
+
+      const { uri } = await Print.printToFileAsync({ html: htmlContent });
+      await Sharing.shareAsync(uri);
+    } catch (err) {
+      console.error(err);
+      Alert.alert("Error", "Failed to generate or share PDF");
+    }
+  };
 
   if (loading) {
     return (
@@ -349,104 +332,188 @@ Alert.alert("Download PDF?", "Do you want to download the PDF before proceeding?
                   </TouchableOpacity>
                 ))}
 
-              {/* Render child questions */}
-{form.questions
-  .filter((child) => child.parentQuestionId === parent.id)
-  .map((child) => {
-    const parentAnswer = answers[parent.id];
+              {form.questions
+                .filter((child) => child.parentQuestionId === parent.id)
+                .map((child) => {
+                  const parentAnswer = answers[parent.id];
+                  let shouldShow = false;
 
-    // ✅ Show logic:
-    // - If child.optionId exists → show only if user selected that specific option.
-    // - If child.optionId is null → show always.
-    let shouldShow = false;
+                  if (child.optionId) {
+                    shouldShow =
+                      typeof parentAnswer === "string" &&
+                      (parent.options?.some(
+                        (opt) => opt.id === child.optionId && opt.optionText === parentAnswer
+                      ) || false);
+                  } else {
+                    shouldShow = true;
+                  }
 
-    if (child.optionId) {
-shouldShow =
-  typeof parentAnswer === "string" &&
-  (parent.options?.some(
-    (opt) =>
-      opt.id === child.optionId &&
-      opt.optionText === parentAnswer
-  ) || false);
-    } else {
-      shouldShow = true; // no specific option required → show always
-    }
+                  if (!shouldShow) return null;
 
-    if (!shouldShow) return null;
+                  return (
+                    <View
+                      key={child.id}
+                      className="mt-4 pl-4 border-l-2 border-gray-300"
+                    >
+                      <Text className="font-semibold mb-2">
+                        {child.questionText}
+                      </Text>
 
-    return (
-      <View
-        key={child.id}
-        className="mt-4 pl-4 border-l-2 border-gray-300"
-      >
-        <Text className="font-semibold mb-2">
-          {child.questionText}
-        </Text>
+                      {child.inputType === "text" && (
+                        <TextInput
+                          placeholder="Type your answer..."
+                          className="border rounded-lg px-3 py-2"
+                          value={(answers[child.id] as string) || ""}
+                          onChangeText={(text) => handleTextChange(child.id, text)}
+                        />
+                      )}
 
-        {child.inputType === "text" && (
-          <TextInput
-            placeholder="Type your answer..."
-            className="border rounded-lg px-3 py-2"
-            value={(answers[child.id] as string) || ""}
-            onChangeText={(text) =>
-              handleTextChange(child.id, text)
-            }
-          />
-        )}
+                      {child.inputType === "radio" &&
+                        child.options?.map((opt) => (
+                          <TouchableOpacity
+                            key={opt.id}
+                            className="flex-row items-center mb-2"
+                            onPress={() => handleRadioSelect(child.id, opt.optionText)}
+                          >
+                            <View
+                              className={`w-5 h-5 border-2 rounded mr-2 ${
+                                answers[child.id] === opt.optionText
+                                  ? "bg-primary"
+                                  : "bg-white"
+                              }`}
+                            />
+                            <Text>{opt.optionText}</Text>
+                          </TouchableOpacity>
+                        ))}
 
-        {child.inputType === "radio" &&
-          child.options?.map((opt) => (
-            <TouchableOpacity
-              key={opt.id}
-              className="flex-row items-center mb-2"
-              onPress={() =>
-                handleRadioSelect(child.id, opt.optionText)
-              }
-            >
-              <View
-                className={`w-5 h-5 border-2 rounded mr-2 ${
-                  answers[child.id] === opt.optionText
-                    ? "bg-primary"
-                    : "bg-white"
-                }`}
-              />
-              <Text>{opt.optionText}</Text>
-            </TouchableOpacity>
-          ))}
-
-        {child.inputType === "choice" &&
-          child.options?.map((opt) => (
-            <TouchableOpacity
-              key={opt.id}
-              className="flex-row items-center mb-2"
-              onPress={() =>
-                handleChoiceToggle(child.id, opt.optionText)
-              }
-            >
-              <View
-                className={`w-5 h-5 border-2 rounded mr-2 ${
-                  ((answers[child.id] as string[]) || []).includes(
-                    opt.optionText
-                  )
-                    ? "bg-primary"
-                    : "bg-white"
-                }`}
-              />
-              <Text>{opt.optionText}</Text>
-            </TouchableOpacity>
-          ))}
-
-      </View>
-    );
-  })}
-
+                      {child.inputType === "choice" &&
+                        child.options?.map((opt) => (
+                          <TouchableOpacity
+                            key={opt.id}
+                            className="flex-row items-center mb-2"
+                            onPress={() => handleChoiceToggle(child.id, opt.optionText)}
+                          >
+                            <View
+                              className={`w-5 h-5 border-2 rounded mr-2 ${
+                                ((answers[child.id] as string[]) || []).includes(opt.optionText)
+                                  ? "bg-primary"
+                                  : "bg-white"
+                              }`}
+                            />
+                            <Text>{opt.optionText}</Text>
+                          </TouchableOpacity>
+                        ))}
+                    </View>
+                  );
+                })}
             </View>
           ))}
 
-        <TouchableOpacity onPress={handleNext} className="bg-primary rounded-xl py-4 mb-10">
-          <Text className="text-white text-center font-semibold text-lg">Submit →</Text>
-        </TouchableOpacity>
+        <View className="flex-row justify-between mb-10 mt-6">
+          <TouchableOpacity
+            onPress={handleDownloadPDF}
+            className="flex-1 bg-gray-200 py-4 rounded-xl mr-2"
+          >
+            <Text className="text-center font-semibold text-gray-800 text-lg">
+              📄 Download PDF
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setUploadModalVisible(true)}
+            className="flex-1 bg-primary py-4 rounded-xl ml-2"
+          >
+            <Text className="text-white text-center font-semibold text-lg">
+              Submit →
+            </Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
+
+      {/* 🟩 Upload Photo Modal */}
+<Modal
+  visible={uploadModalVisible}
+  transparent
+  animationType="slide"
+  onRequestClose={() => setUploadModalVisible(false)}
+>
+  <View className="flex-1 bg-black/50 justify-center items-center px-5">
+    <View className="bg-white w-full rounded-2xl p-6 max-h-[85%]">
+      <Text className="text-xl font-semibold text-center mb-4">
+        Upload Consent Form
+      </Text>
+
+<View className="flex-row justify-center mb-3 gap-x-3">
+  <TouchableOpacity
+    onPress={openCamera}
+    className="bg-gray-200 flex-row items-center px-4 py-3 rounded-lg"
+  >
+    <Camera size={20} color="#333" />
+    <Text className="text-gray-800 ml-2">Camera</Text>
+  </TouchableOpacity>
+
+  <TouchableOpacity
+    onPress={openImagePicker}
+    className="bg-gray-200 flex-row items-center px-4 py-3 rounded-lg"
+  >
+    <ImageIcon size={20} color="#333" />
+    <Text className="text-gray-800 ml-2">Gallery</Text>
+  </TouchableOpacity>
+</View>
+
+      <ScrollView
+        className="mt-3"
+        contentContainerStyle={{ alignItems: "center" }}
+      >
+        {selectedImages.length > 0 ? (
+          selectedImages.map((uri, index) => (
+            <View key={index} className="relative mb-4">
+              <Image
+                source={{ uri }}
+                className="w-72 h-64 rounded-xl"
+                resizeMode="cover"
+              />
+              <TouchableOpacity
+                onPress={() =>
+                  setSelectedImages((prev) => prev.filter((_, i) => i !== index))
+                }
+                className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded-full"
+              >
+                <Text className="text-white text-xs">✕</Text>
+              </TouchableOpacity>
+            </View>
+          ))
+        ) : (
+          <Text className="text-gray-500 mt-4">No photos selected yet.</Text>
+        )}
+      </ScrollView>
+
+      <View className="flex-row justify-between mt-4">
+        <TouchableOpacity
+          onPress={() => setUploadModalVisible(false)}
+          className="flex-1 bg-gray-200 py-3 rounded-xl mr-2"
+        >
+          <Text className="text-center text-gray-700 font-semibold">
+            Cancel
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          disabled={uploading || selectedImages.length === 0}
+          onPress={uploadPhotos}
+          className={`flex-1 ${
+            selectedImages.length > 0 ? "bg-blue-500" : "bg-gray-300"
+          } py-3 rounded-xl ml-2`}
+        >
+          <Text className="text-center text-white font-semibold">
+            {uploading ? "Uploading..." : "Upload & Continue →"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  </View>
+</Modal>
+
 
       <Navbar />
     </View>

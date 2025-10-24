@@ -4,6 +4,8 @@ import Navbar from "../components/Navbar";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import api from "../API/api"; // 👈 axios instance
+import { Modal } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 
 type RootStackParamList = {
   Dashboard: undefined;
@@ -36,6 +38,9 @@ const Profile = () => {
   // We'll store formatted package history so rendering is simpler:
   const [packageHistory, setPackageHistory] = useState<any[]>([]);
   const [loadingPackage, setLoadingPackage] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+const [selectedPhoto, setSelectedPhoto] = useState<any>(null);
+const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     console.log("🟢 Profile screen received params:", route.params);
@@ -98,6 +103,50 @@ const Profile = () => {
     };
     fetchTreatmentHistory();
   }, [id]);
+
+  const pickImage = async () => {
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    allowsEditing: true,
+    aspect: [1, 1],
+    quality: 0.7,
+  });
+
+  if (!result.canceled) {
+    setSelectedPhoto(result.assets[0]);
+  }
+};
+
+const uploadProfilePhoto = async () => {
+  if (!selectedPhoto) {
+    Alert.alert("Please select a photo first.");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("photo", {
+    uri: selectedPhoto.uri,
+    type: "image/jpeg",
+    name: "profile.jpg",
+  } as any);
+
+  try {
+    setUploading(true);
+    await api.post(`/ClientProfile/uploadphoto/${id}`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    Alert.alert("✅ Success", "Profile photo updated!");
+    setShowModal(false);
+    setSelectedPhoto(null);
+    // You can trigger a re-fetch if API returns photo URL
+    // fetchProfile();
+  } catch (error: any) {
+    console.error("❌ Upload error:", error);
+    Alert.alert("Error", "Failed to upload profile photo.");
+  } finally {
+    setUploading(false);
+  }
+};
 
   // Fetch package history and format treatments
   useEffect(() => {
@@ -189,10 +238,17 @@ const Profile = () => {
       <View className="w-[95%] bg-white border border-gray-200 p-5 mt-[15%] mx-auto rounded-xl">
         <View className="flex-row items-center justify-between mb-3">
           <View className="flex-row items-center gap-x-4 flex-1">
-            <Image
-              source={require("../assets/pp.jpg")}
-              className="w-16 h-16 rounded-full"
-            />
+<TouchableOpacity onPress={() => setShowModal(true)}>
+  <Image
+    source={
+      selectedPhoto
+        ? { uri: selectedPhoto.uri }
+        : require("../assets/pp.jpg")
+    }
+    className="w-16 h-16 rounded-full"
+  />
+</TouchableOpacity>
+
             <View className="flex-col flex-1">
               {isEditing ? (
                 <>
@@ -512,6 +568,63 @@ const Profile = () => {
           </View>
         ))}
       </ScrollView>
+      {/* Upload Photo Modal */}
+<Modal
+  visible={showModal}
+  transparent
+  animationType="fade"
+  onRequestClose={() => setShowModal(false)}
+>
+  <View className="flex-1 justify-center items-center w-[100%] bg-black/50">
+    <View className="bg-white rounded-xl w-[90%] h-[50%] p-6">
+      <Text className="text-lg text-center font-bold mb-3">Change Profile Picture</Text>
+
+      <TouchableOpacity
+  onPress={pickImage}
+  activeOpacity={0.7}
+  className="self-center mt-10 mb-4"
+>
+  {selectedPhoto ? (
+    <Image
+      source={{ uri: selectedPhoto.uri }}
+      className="w-[200px] h-[200px] rounded-full"
+    />
+  ) : (
+    <View className="w-[200px] h-[200px] bg-gray-200 rounded-full items-center justify-center">
+      <Text className="text-gray-500 text-sm">Tap to choose photo</Text>
+    </View>
+  )}
+</TouchableOpacity>
+
+<View className="flex-row items-center justify-center mt-10">
+      <TouchableOpacity
+        onPress={uploadProfilePhoto}
+        disabled={uploading}
+        className="bg-primary rounded-lg px-[10%] py-[3%] mb-2"
+      >
+        {uploading ? (
+          <ActivityIndicator color="#000" />
+        ) : (
+          <Text className="text-center font-semibold text-white">
+            Upload
+          </Text>
+        )}
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        onPress={() => {
+          setShowModal(false);
+          setSelectedPhoto(null);
+        }}
+        className="bg-secondary rounded-lg px-[10%] py-[3%] mb-2 ml-4"
+      >
+        <Text className="text-center font-semibold text-black">Cancel</Text>
+      </TouchableOpacity>
+      </View>
+    </View>
+  </View>
+</Modal>
+
 
       <Navbar />
     </View>

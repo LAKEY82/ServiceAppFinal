@@ -1,16 +1,6 @@
 // StartTreatment.tsx
 import React, { useEffect, useState } from 'react'
-import {
-  View,
-  Text,
-  Image,
-  TouchableOpacity,
-  ScrollView,
-  Modal,
-  Platform,
-  Alert,
-  ActivityIndicator,
-} from 'react-native'
+import {View,Text,Image,TextInput,TouchableOpacity,ScrollView,Modal,Platform,Alert,ActivityIndicator,} from 'react-native'
 import Navbar from '../components/Navbar'
 import * as ImagePicker from 'expo-image-picker'
 import { Camera } from 'lucide-react-native'
@@ -60,7 +50,9 @@ const StartTreatment: React.FC = () => {
   const route = useRoute<StartTreatmentRouteProp>()
 const { formData } = route.params as { formData: { customerId: string; consultationId: number; treatmentId: number; answers: any } };
 const { customerId, consultationId, treatmentId, answers } = formData;
-
+const [showRatingModal, setShowRatingModal] = useState(false)
+const [rating, setRating] = useState(0)
+const [remark, setRemark] = useState('')
 console.log("StartTreatment screen received customerId:", customerId);
 console.log("StartTreatment screen received consultationId:", consultationId);
 console.log("StartTreatment screen received treatmentId:", treatmentId);
@@ -428,31 +420,106 @@ const handleUploadAfterPhotos = async () => {
       </ScrollView>
 
       {/* Timer Modal */}
-      <Modal visible={showTimerModal} transparent animationType="slide">
-        <View className="flex-1 bg-black/50 items-center justify-center">
-          <View className="bg-white p-6 rounded-xl w-[80%] items-center">
-            <Text className="text-lg font-bold mb-4">Treatment plan</Text>
-            <Text className="text-2xl font-bold">{formatTime(seconds)}</Text>
-            {/*<Text className="text-xs text-center mt-2 mb-4">
-              The task will be moved to the Completed section and will be closed.
-            </Text>
-            <Text className="text-lg font-bold mb-4">Facial time: 1h</Text>*/}
-            <TouchableOpacity
-              className="bg-primary mt-6 px-6 py-3 rounded-full"
-              onPress={() => {
-                setShowTimerModal(false)
-                // navigation.navigate('Appoinments', { 
-                //   customerId, 
-                //   photos: [...beforePhotosFromParams, ...afterPhotos]
-                // })
+{/* Timer Modal */}
+<Modal visible={showTimerModal} transparent animationType="slide">
+  <View className="flex-1 bg-black/50 items-center justify-center">
+    <View className="bg-white p-6 rounded-xl w-[80%] items-center">
+      <Text className="text-lg font-bold mb-4">Treatment plan</Text>
+
+      {/* Timer text with color change */}
+      <Text
+        className="text-2xl font-bold"
+        style={{
+          color:
+            seconds >= 200
+              ? '#FF0000' // red after 2 hours
+              : seconds >= 36
+              ? '#B8860B' // dark yellow after 1 hour
+              : 'primary', // normal black before 1 hour
+        }}
+      >
+        {formatTime(seconds)}
+      </Text>
+
+      <TouchableOpacity
+        className="bg-primary mt-6 px-6 py-3 rounded-full"
+        onPress={() => {
+          setShowTimerModal(false)
+          setShowRatingModal(true) // 👈 Show the new rating modal after stopping
+        }}
+      >
+        <Text className="text-white font-bold">End</Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+</Modal>
+
+{/* ⭐ Rate Us Modal */}
+<Modal visible={showRatingModal} transparent animationType="slide">
+  <View className="flex-1 bg-black/50 items-center justify-center">
+    <View className="bg-white p-6 rounded-xl w-[85%]">
+      <Text className="text-lg font-bold text-center mb-4">Rate Us</Text>
+
+      {/* Star Rating */}
+      <View className="flex-row justify-center mb-4">
+        {[1, 2, 3, 4, 5].map(star => (
+          <TouchableOpacity key={star} onPress={() => setRating(star)}>
+            <Text
+              style={{
+                fontSize: 32,
+                marginHorizontal: 5,
+                color: star <= rating ? '#FFD700' : '#CCCCCC',
               }}
             >
-              <Text className="text-white font-bold">End</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+              ★
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
+      {/* Remark Input */}
+      <View className="bg-[#F6F6F6] rounded-lg p-2 mb-4">
+        <TextInput
+          className="text-black"
+          placeholder="Add your remark..."
+          placeholderTextColor="#999"
+          value={remark}
+          onChangeText={setRemark}
+          multiline
+          style={{ height: 100, textAlignVertical: 'top' }}
+        />
+      </View>
+
+      {/* Buttons */}
+      <View className="flex-row justify-between mt-2">
+        <TouchableOpacity
+          className="bg-gray-300 px-6 py-3 rounded-full w-[45%] items-center"
+          onPress={() => {
+            setShowRatingModal(false)
+            setRating(0)
+            setRemark('')
+          }}
+        >
+          <Text className="text-black font-bold">Cancel</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          className="bg-primary px-6 py-3 rounded-full w-[45%] items-center"
+          onPress={() => {
+            console.log('⭐ Rating:', rating)
+            console.log('📝 Remark:', remark)
+            Alert.alert('Thank You!', 'Your feedback has been submitted.')
+            setShowRatingModal(false)
+            setRating(0)
+            setRemark('')
+          }}
+        >
+          <Text className="text-white font-bold">Submit</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  </View>
+</Modal>
       <Navbar />
     </View>
   )
