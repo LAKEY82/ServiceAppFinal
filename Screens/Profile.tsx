@@ -1,18 +1,11 @@
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Image,
-  TextInput,
-  ScrollView,
-  ActivityIndicator,
-  Alert,
-} from "react-native";
+import {View,Text,TouchableOpacity,Image,TextInput,ScrollView,ActivityIndicator,Alert,} from "react-native";
 import React, { useState, useEffect } from "react";
 import Navbar from "../components/Navbar";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import api from "../API/api"; // 👈 axios instance
+import { Modal } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 
 type RootStackParamList = {
   Dashboard: undefined;
@@ -45,6 +38,9 @@ const Profile = () => {
   // We'll store formatted package history so rendering is simpler:
   const [packageHistory, setPackageHistory] = useState<any[]>([]);
   const [loadingPackage, setLoadingPackage] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+const [selectedPhoto, setSelectedPhoto] = useState<any>(null);
+const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     console.log("🟢 Profile screen received params:", route.params);
@@ -108,6 +104,94 @@ const Profile = () => {
     fetchTreatmentHistory();
   }, [id]);
 
+  const pickImage = async () => {
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    allowsEditing: true,
+    aspect: [1, 1],
+    quality: 0.7,
+  });
+
+  if (!result.canceled) {
+    setSelectedPhoto(result.assets[0]);
+  }
+};
+
+const uploadProfilePhoto = async () => {
+  if (!selectedPhoto) {
+    Alert.alert("Please select a photo first.");
+    return;
+  }
+
+  try {
+    setUploading(true);
+
+    const uri = selectedPhoto.uri;
+    const filename = uri.split("/").pop() || "profile.jpg";
+    const match = /\.(\w+)$/.exec(filename);
+    const type = match ? `image/${match[1]}` : "image/jpeg";
+
+    const formData = new FormData();
+    formData.append("profilePicture", {
+      uri,
+      name: filename,
+      type,
+    } as any);
+
+    const uploadUrl = `/ClientProfile/clientprofile/update/profilepic/${id}`;
+    console.log("🟢 Uploading to:", uploadUrl);
+
+    const response = await api.post(uploadUrl, formData, {
+      headers: {
+        Accept: "*/*",
+        "Content-Type": "multipart/form-data",
+      },
+      transformRequest: (data, headers) => {
+        // 👇 Let Axios handle boundary formatting correctly
+        return data;
+      },
+    });
+
+    console.log("✅ Upload success:", response.data);
+    Alert.alert("✅ Success", "Profile photo updated successfully!");
+    setShowModal(false);
+    setSelectedPhoto(null);
+
+    // Optionally re-fetch updated profile
+    const refreshed = await api.get(`/ClientProfile/clientprofile/${id}`);
+    setProfileData(refreshed.data);
+  } catch (error: any) {
+    console.error("❌ Upload error:", error?.response || error.message);
+    Alert.alert(
+      "Error",
+      `Failed to upload profile photo.\n${
+        error?.response?.data?.message ||
+        JSON.stringify(error?.response?.data) ||
+        error.message
+      }`
+    );
+  } finally {
+    setUploading(false);
+  }
+};
+
+//display the URl for profile picture
+// 🖼️ Safely build the correct image URL
+const baseUrl = "https://chrimgtapp.xenosyslab.com";
+let finalUrl = null;
+
+if (profileData?.profilePic) {
+  const cleanedPath = profileData.profilePic
+    .trim()
+    .replace(/^\/+/, "") // remove starting slashes
+    .replace(/\s+/g, ""); // remove stray spaces
+  finalUrl = `${baseUrl}/${cleanedPath}`;
+}
+
+console.log("🧩 Final Profile URL:", finalUrl);
+
+
+
   // Fetch package history and format treatments
   useEffect(() => {
     const fetchPackageHistory = async () => {
@@ -145,6 +229,7 @@ const Profile = () => {
     setEditableData({ ...editableData, [key]: value });
   };
 
+  //insert data to be sent
   const handleSave = async () => {
     const payload = {
       salutation: editableData.salutation ?? "",
@@ -197,10 +282,19 @@ const Profile = () => {
       <View className="w-[95%] bg-white border border-gray-200 p-5 mt-[15%] mx-auto rounded-xl">
         <View className="flex-row items-center justify-between mb-3">
           <View className="flex-row items-center gap-x-4 flex-1">
-            <Image
-              source={require("../assets/pp.jpg")}
-              className="w-16 h-16 rounded-full"
-            />
+<TouchableOpacity onPress={() => setShowModal(true)}>
+  <Image
+  source={
+    selectedPhoto
+      ? { uri: selectedPhoto.uri }
+      : finalUrl
+      ? { uri: encodeURI(finalUrl) }
+      : require("../assets/pp.jpg")
+  }
+  className="w-16 h-16 rounded-full"
+/>
+</TouchableOpacity>
+
             <View className="flex-col flex-1">
               {isEditing ? (
                 <>
@@ -520,6 +614,63 @@ const Profile = () => {
           </View>
         ))}
       </ScrollView>
+      {/* Upload Photo Modal */}
+<Modal
+  visible={showModal}
+  transparent
+  animationType="fade"
+  onRequestClose={() => setShowModal(false)}
+>
+  <View className="flex-1 justify-center items-center w-[100%] bg-black/50">
+    <View className="bg-white rounded-xl w-[90%] h-[50%] p-6">
+      <Text className="text-lg text-center font-bold mb-3">Change Profile Picture</Text>
+
+      <TouchableOpacity
+  onPress={pickImage}
+  activeOpacity={0.7}
+  className="self-center mt-10 mb-4"
+>
+  {selectedPhoto ? (
+    <Image
+      source={{ uri: selectedPhoto.uri }}
+      className="w-[200px] h-[200px] rounded-full"
+    />
+  ) : (
+    <View className="w-[200px] h-[200px] bg-gray-200 rounded-full items-center justify-center">
+      <Text className="text-gray-500 text-sm">Tap to choose photo</Text>
+    </View>
+  )}
+</TouchableOpacity>
+
+<View className="flex-row items-center justify-center mt-10">
+      <TouchableOpacity
+        onPress={uploadProfilePhoto}
+        disabled={uploading}
+        className="bg-primary rounded-lg px-[10%] py-[3%] mb-2"
+      >
+        {uploading ? (
+          <ActivityIndicator color="#000" />
+        ) : (
+          <Text className="text-center font-semibold text-white">
+            Upload
+          </Text>
+        )}
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        onPress={() => {
+          setShowModal(false);
+          setSelectedPhoto(null);
+        }}
+        className="bg-secondary rounded-lg px-[10%] py-[3%] mb-2 ml-4"
+      >
+        <Text className="text-center font-semibold text-black">Cancel</Text>
+      </TouchableOpacity>
+      </View>
+    </View>
+  </View>
+</Modal>
+
 
       <Navbar />
     </View>

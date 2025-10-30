@@ -15,6 +15,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import StartTreatment from "./Screens/StartTreatment";
 import ConsentForm from "./Screens/ConsentForm";
 import TreatmentConcentForm from "./Screens/TreatmentConcentForm";
+import TreatmentAfterPhoto from "./Screens/TreatmentAfterPhoto";
 export type RootStackParamList = {
   Splash: undefined;
   Login: undefined;
@@ -27,6 +28,7 @@ export type RootStackParamList = {
   StartTreatment:undefined;
   ConsentForm:undefined;
   TreatmentConcentform:undefined;
+  TreatmentAfterPhoto:undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -47,6 +49,7 @@ export default function App() {
         <Stack.Screen name="Profile" options={{ headerShown: false }} component={Profile} />
         <Stack.Screen name="ConsentForm" options={{ headerShown: false }} component={ConsentForm} />
         <Stack.Screen name="TreatmentConcentform" options={{ headerShown: false }} component={TreatmentConcentForm} />
+        <Stack.Screen name="TreatmentAfterPhoto" options={{ headerShown: false }} component={TreatmentAfterPhoto} />
       </Stack.Navigator>
     </NavigationContainer>
     </SafeAreaProvider>

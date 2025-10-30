@@ -1,4 +1,3 @@
-// StartTreatment.tsx
 import React, { useEffect, useState,useRef  } from 'react'
 import {View,Text,Image,TextInput,TouchableOpacity,ScrollView,Modal,Platform,Alert,ActivityIndicator,} from 'react-native'
 import Navbar from '../components/Navbar'
@@ -33,21 +32,21 @@ interface RemarkItem {
 }
 
 type RootStackParamList = {
-    StartTreatment: { 
+    TreatmentAfterPhoto: { 
     formData: { customerId: string; consultationId: number; treatmentId: number; answers: any; photos?: (string | null)[] } 
   }
-  Appointments: { customerId: string;  treatmentId:string, }
+  Appointments: { customerId: string; photos?: (string | null)[] }
   ConsentForm: { consultationId: number; customerId: string }
   Profile: { id: string }
   TreatmentConcentform: { Name:string,customerId: string; treatmentId: number }
 }
 
-type StartTreatmentRouteProp = RouteProp<RootStackParamList, 'StartTreatment'>
+type TreatmentAfterPhotoRouteProp = RouteProp<RootStackParamList, 'TreatmentAfterPhoto'>
 
 /** ---------- Component ---------- **/
-const StartTreatment: React.FC = () => {
+const TreatmentAfterPhoto: React.FC = () => {
   const navigation = useNavigation<any>()
-  const route = useRoute<StartTreatmentRouteProp>()
+  const route = useRoute<TreatmentAfterPhotoRouteProp>()
 const { formData } = route.params as { formData: { customerId: string; consultationId: number; treatmentId: number; answers: any } };
 const { customerId, consultationId, treatmentId, answers } = formData;
 const [showRatingModal, setShowRatingModal] = useState(false)
@@ -81,53 +80,6 @@ console.log("StartTreatment screen received treatmentId:", treatmentId);
     setBeforePhotos(updated)
   }
 }
-
-const handleUploadBeforePhotos = async () => {
-  console.log('🚀 handleUploadBeforePhotos called');
-  setUploadingBefore(true);
-
-  try {
-    console.log('CustomerId:', customerId);
-    console.log('TreatmentId:', treatmentId);
-    console.log('Before Photos Array:', beforePhotos);
-
-    const formData = new FormData();
-    formData.append('customerId', customerId);
-    formData.append('treatmetId', String(treatmentId)); // 👈 matches backend typo
-
-    beforePhotos.forEach((uri, idx) => {
-      if (uri) {
-        const fileUri = Platform.OS === 'ios' ? uri.replace('file://', '') : uri;
-        const photo = {
-          uri: fileUri,
-          type: 'image/jpeg',
-          name: `before_${idx}.jpg`,
-        };
-        formData.append('photos', photo as any);
-      }
-    });
-
-    console.log('📡 Sending POST request to /Treatment/Treatmentphoto/Before/upload');
-    const response = await api.post(
-      '/Treatment/Treatmentphoto/Before/upload',
-      formData,
-      { headers: { 'Content-Type': 'multipart/form-data' } }
-    );
-
-    console.log('✅ Upload successful:', response.data);
-    Alert.alert('Success', 'Before photos uploaded successfully!');
-
-    // ✅ Navigate to Appointments page after upload success
-    navigation.navigate('Appoinments', { customerId, treatmentId });
-  } catch (err: any) {
-    console.error('❌ Upload failed:', err.response?.data || err.message);
-    Alert.alert('Upload failed', 'Failed to upload before photos.');
-  } finally {
-    console.log('🔚 handleUploadBeforePhotos finished');
-    setUploadingBefore(false);
-  }
-};
-
   /** ---------- Fetch client ---------- **/
   useEffect(() => {
     const fetchClient = async () => {
@@ -206,49 +158,58 @@ const handleUploadBeforePhotos = async () => {
   }
 
   /** ---------- Upload after photos ---------- **/
+/** ---------- Upload after photos ---------- **/
 const handleUploadAfterPhotos = async () => {
-  setUploadingAfter(true)
+  setUploadingAfter(true);
 
   try {
-    console.log('🚀 handleUploadAfterPhotos called')
-    console.log('CustomerId:', customerId)
-    console.log('TreatmentId:', treatmentId)
-    console.log('After Photos Array:', afterPhotos)
+    console.log('🚀 handleUploadAfterPhotos called');
+    console.log('CustomerId:', customerId);
+    console.log('TreatmentId:', treatmentId);
+    console.log('After Photos Array:', afterPhotos);
 
-    const formData = new FormData()
-    formData.append('customerId', customerId) // ✅ lowercase, matches backend
-    formData.append('treatmetId', String(treatmentId)) // ✅ matches backend typo
+    const formData = new FormData();
+    formData.append('customerId', customerId); // ✅ backend expects lowercase
+    formData.append('treatmetId', String(treatmentId)); // ✅ matches backend typo
 
     afterPhotos.forEach((uri, idx) => {
       if (uri) {
-        const fileUri = Platform.OS === 'ios' ? uri.replace('file://', '') : uri
+        const fileUri = Platform.OS === 'ios' ? uri.replace('file://', '') : uri;
         const fileObj = {
           uri: fileUri,
           type: 'image/jpeg',
           name: `after_${idx}.jpg`,
-        }
-        console.log(`📸 Adding photo #${idx + 1}:`, fileObj)
-        formData.append('photos', fileObj as any) // ✅ matches backend
+        };
+        console.log(`📸 Adding photo #${idx + 1}:`, fileObj);
+        formData.append('photos', fileObj as any);
       } else {
-        console.log(`⚠️ Skipped photo #${idx + 1} because URI is invalid:`, uri)
+        console.log(`⚠️ Skipped photo #${idx + 1} because URI is invalid:`, uri);
       }
-    })
+    });
 
-    console.log('📡 Sending POST request to /Treatment/Treatmentphoto-upload')
+    console.log('📡 Sending POST request to /Treatment/Treatmentphoto-upload');
     const response = await api.post('/Treatment/Treatmentphoto-upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-    })
+    });
 
-    console.log('✅ Upload successful:', response.data)
-    Alert.alert('Success', 'After photos uploaded!')
+    console.log('✅ Upload successful:', response.data);
+    Alert.alert('Success', 'After photos uploaded successfully!');
+
+    // ✅ Navigate back to Appoinments with all required params
+    navigation.navigate('Appoinments', {
+      treatmentId,
+      customerId,
+    });
+
   } catch (err: any) {
-    console.error('❌ Upload failed:', err.response?.data || err.message)
-    Alert.alert('Upload failed', 'Failed to upload after photos.')
+    console.error('❌ Upload failed:', err.response?.data || err.message);
+    Alert.alert('Upload failed', 'Failed to upload after photos.');
   } finally {
-    setUploadingAfter(false)
-    console.log('🔚 handleUploadAfterPhotos finished')
+    setUploadingAfter(false);
+    console.log('🔚 handleUploadAfterPhotos finished');
   }
-}
+};
+
 
 
   /** ---------- Header content ---------- **/
@@ -286,12 +247,12 @@ const handleUploadAfterPhotos = async () => {
             <Text className="text-white text-xs font-bold text-center">View Consent Form</Text>
           </TouchableOpacity>
         
-        {/* <TouchableOpacity
+        <TouchableOpacity
                     className="bg-primary p-1 rounded-lg w-[130px] items-center justify-center"
                     onPress={() => navigation.navigate('Appoinments', { customerId })}
                   >
                     <Text className="text-white text-xs font-bold text-center">View Medical Reports</Text>
-                  </TouchableOpacity> */}
+                  </TouchableOpacity>
                 </View>
       </>
     )
@@ -346,25 +307,21 @@ const handleUploadAfterPhotos = async () => {
     </View>
   </ScrollView>
 </View>
-
-
-
-        {/* Before Photos */}
-{/* Before Photos */}
+        {/* After Photos */}
 <View className="bg-[#F6F6F6] rounded-xl p-3 mb-4">
-  <Text className="font-bold text-sm mb-2">Before Photos</Text>
+  <Text className="font-bold text-sm mb-2">After Photos</Text>
   <View className="flex-row flex-wrap justify-between">
-    {beforePhotos.map((uri, idx) => {
+    {afterPhotos.map((uri, idx) => {
       const [isBlurred, setIsBlurred] = useState(true);
 
       return (
         <TouchableOpacity
           key={idx}
-          onPress={() => pickBeforePhoto(idx)}
+          onPress={() => pickAfterPhoto(idx)}
           onLongPress={() => {
             if (uri) {
               setIsBlurred(false);
-              setTimeout(() => setIsBlurred(true), 1500); // 👈 Show clear for 1.5s
+              setTimeout(() => setIsBlurred(true), 1500);
             }
           }}
           className="w-[30%] h-24 bg-white mb-3 rounded-md items-center justify-center border border-gray-300 overflow-hidden"
@@ -394,11 +351,11 @@ const handleUploadAfterPhotos = async () => {
 
   <TouchableOpacity
     className="bg-primary px-6 py-3 rounded-full items-center mt-3"
-    onPress={handleUploadBeforePhotos}
-    disabled={uploadingBefore}
+    onPress={handleUploadAfterPhotos}
+    disabled={uploadingAfter}
   >
     <Text className="text-white font-bold">
-      {uploadingBefore ? "Uploading..." : "Upload Before Photos"}
+      {uploadingAfter ? "Uploading..." : "Upload After Photos"}
     </Text>
   </TouchableOpacity>
 </View>
@@ -408,4 +365,4 @@ const handleUploadAfterPhotos = async () => {
   )
 }
 
-export default StartTreatment
+export default TreatmentAfterPhoto;

@@ -6,6 +6,7 @@ import * as ImagePicker from 'expo-image-picker'
 import { Camera } from 'lucide-react-native'
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native'
 import api from '../API/api'
+import { BlurView } from "expo-blur";
 
 /** ---------- Types ---------- **/
 
@@ -283,24 +284,47 @@ const handleProceedToTreatment = async () => {
 
 
         {/* Photo Grid */}
-        <View className="bg-[#F6F6F6] rounded-xl p-3 mb-4">
-          <Text className="font-bold text-sm mb-2">Before Photo</Text>
-          <View className="flex-row flex-wrap justify-between">
-            {photos.map((p, idx) => (
-              <TouchableOpacity
-                key={idx}
-                onPress={() => openCamera(idx)}
-                className="w-[30%] h-24 bg-white mb-3 rounded-md items-center justify-center border border-gray-300"
-              >
-                {p ? (
-                  <Image source={{ uri: p }} className="w-full h-full rounded-md" />
-                ) : (
-                  <Camera size={20} color="#666" />
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
+       <View className="bg-[#F6F6F6] rounded-xl p-3 mb-4">
+  <Text className="font-bold text-sm mb-2">Before Photo</Text>
+  <View className="flex-row flex-wrap justify-between">
+    {photos.map((p, idx) => {
+      const [isBlurred, setIsBlurred] = useState(true)
+
+      return (
+        <TouchableOpacity
+          key={idx}
+          onPress={() => openCamera(idx)}
+          onLongPress={() => {
+            if (p) {
+              setIsBlurred(false)
+              setTimeout(() => setIsBlurred(true), 1500) // 👈 Show clear for 1.5s
+            }
+          }}
+          className="w-[30%] h-24 bg-white mb-3 rounded-md items-center justify-center border border-gray-300 overflow-hidden"
+        >
+          {p ? (
+            <View className="w-full h-full">
+              <Image
+                source={{ uri: p }}
+                className="w-full h-full rounded-md absolute"
+                resizeMode="cover"
+              />
+              {isBlurred && (
+                <BlurView
+                  intensity={40}
+                  tint="light"
+                  className="absolute top-0 left-0 right-0 bottom-0 rounded-md"
+                />
+              )}
+            </View>
+          ) : (
+            <Camera size={20} color="#666" />
+          )}
+        </TouchableOpacity>
+      )
+    })}
+  </View>
+</View>
 
         {/* Upload & Proceed */}
         <View className="flex-1 items-center mt-6">
