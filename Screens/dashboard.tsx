@@ -21,6 +21,7 @@ type RootStackParamList = {
     consultationId: number;
     appointmentType: string;
     treatmentId: string;
+    initialStatus:string;
   };
   Profile: { id: string };
   StartTreatment: { customerId: string; consultationId: number };
@@ -36,17 +37,11 @@ const Dashboard = () => {
   const [selected, setSelected] = useState<string | null>(null);
   const [consultations, setConsultations] = useState<any[]>([]);
   const [treatments, setTreatments] = useState<any[]>([]);
-  const [userData, setUserData] = useState<
-    RootStackParamList["Dashboard"] | null
-  >(null);
+  const [userData, setUserData] = useState<RootStackParamList["Dashboard"] | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [viewType, setViewType] = useState<"consultation" | "treatment">(
-    "consultation"
-  );
-
+  const [viewType, setViewType] = useState<"consultation" | "treatment">("consultation");
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
-
   const navigation = useNavigation<DashboardScreenNavigationProp>();
   const route = useRoute<DashboardRouteProp>();
 
@@ -146,9 +141,9 @@ const Dashboard = () => {
   const getBadgeStyle = (type: string | null | undefined) => {
     switch (type?.toUpperCase()) {
       case "VVIP":
-        return { backgroundColor: "#FFD700" }; // Gold
+        return { backgroundColor: "#ffbb00" }; // Gold
       case "VIP":
-        return { backgroundColor: "#FF3B30" }; // Red
+        return { backgroundColor: "#00bd1c" }; // Green
       case "TOP-SPENDER":
         return { backgroundColor: "#C0C0C0" }; // Silver
       case "LOYAL":
@@ -189,6 +184,7 @@ const Dashboard = () => {
       consultationId: item.departmentId ?? 1,
       treatmentId: item.treatmentId ?? 24,
       appointmentType: item.appointmentType ?? "Consultation",
+      initialStatus:item.initialStatus,
     });
   };
 

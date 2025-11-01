@@ -1,4 +1,4 @@
-import {View,Text,TextInput,TouchableOpacity,ScrollView,Alert,ActivityIndicator,Modal,Image,} from "react-native";
+import {View,Text,TextInput,TouchableOpacity,ScrollView,Alert,ActivityIndicator,Modal,Image,Platform} from "react-native";
 import React, { useState, useEffect } from "react";
 import Navbar from "../components/Navbar";
 import * as Print from "expo-print";
@@ -7,13 +7,15 @@ import * as ImagePicker from "expo-image-picker";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import api from "../API/api"; // your axios instance
 import { Camera, Image as ImageIcon, X } from "lucide-react-native";
-
+import DropDownPicker from 'react-native-dropdown-picker';
+import { Picker } from '@react-native-picker/picker';
 type RootStackParamList = {
   ConcentFill: {
     id: string;
     consultationId: number;
     appointmentType: string;
     treatmentId?: number; // 👈 added for treatment support
+    initialStatus:string;
   };
   Startconsultation: { formData: any };
 };
@@ -44,7 +46,7 @@ interface ConsentForm {
 const ConcentFill = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<ConcentFillRouteProp>();
-  const { id, consultationId, appointmentType, treatmentId } = route.params;
+  const { id, consultationId,initialStatus, appointmentType, treatmentId } = route.params;
 
   console.log("The Params:", route.params);
 
@@ -55,10 +57,89 @@ const ConcentFill = () => {
   const [viewFormModalVisible, setViewFormModalVisible] = useState(false);
 
   //The Modal and Image Upload States
-const [uploadModalVisible, setUploadModalVisible] = useState(false);
-const [selectedImages, setSelectedImages] = useState<string[]>([]);
-const [uploading, setUploading] = useState(false);
-const [accepted, setAccepted] = useState(false);
+  const [uploadModalVisible, setUploadModalVisible] = useState(false);
+  const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [accepted, setAccepted] = useState(false);
+
+  //Thisis for the picker
+  // NOTE: we're replacing native Picker with react-native-dropdown-picker
+  // const [formValue, setFormValue] = useState<string | null>("Consultation"); // default
+  // const [formOpen, setFormOpen] = useState(false);
+  // const [formItems, setFormItems] = useState([
+  //   { label: 'Consultation', value: 'Consultation' },
+  //   { label: 'Treatment', value: 'Treatment' },
+  // ]);
+
+  const [availableForms, setAvailableForms] = useState<
+    { date: string; pdfLocations: string[] }[]
+  >([]);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  // Dropdown state for dates
+  const [dateOpen, setDateOpen] = useState(false);
+  const [dateItems, setDateItems] = useState<Array<{label:string;value:string}>>([]);
+
+  const [formImages, setFormImages] = useState<string[]>([]);
+  const [loadingForms, setLoadingForms] = useState(false);
+    const [formValue, setFormValue] = useState<string | null>("Consultation"); // default
+  const [formOpen, setFormOpen] = useState(false);
+  const [formItems, setFormItems] = useState([
+    { label: 'Consultation', value: 'Consultation' },
+    { label: 'Treatment', value: 'Treatment' },
+  ]);
+  const [formType, setFormType] = useState<string>("Consultation");
+  // Sync date items whenever availableForms changes
+  useEffect(() => {
+    setDateItems(availableForms.map((f) => ({ label: f.date, value: f.date })));
+  }, [availableForms]);
+
+  //This onne for fetch old forms
+  const fetchFilledForms = async (type: string) => {
+    try {
+      setLoadingForms(true);
+      setAvailableForms([]);
+      setFormImages([]);
+      setSelectedDate("");
+
+      let params: any = {
+        customerId: id,
+        formType: type,
+      };
+
+      if (type === "Treatment") {
+        params.consultationId = 0;
+        params.treatmentId = treatmentId || 0;
+      } else if (type === "Consultation") {
+        params.consultationId = consultationId || 0;
+        params.treatmentId = 0;
+      }
+
+      const response = await api.get("/ConcentForm/concent/FilledForm", {
+        params,
+      });
+
+      console.log("🟢 Filled form response:", response.data);
+
+      if (Array.isArray(response.data)) {
+        setAvailableForms(response.data);
+      } else {
+        setAvailableForms([]);
+      }
+    } catch (error) {
+      console.error("❌ Error fetching filled forms:", error);
+      Alert.alert("Error", "Failed to load filled forms.");
+    } finally {
+      setLoadingForms(false);
+    }
+  };
+
+  useEffect(() => {
+    if (viewFormModalVisible) {
+      // ensure dropdown default value is used to fetch
+      fetchFilledForms(formValue || 'Consultation');
+    }
+  }, [viewFormModalVisible]);
 
   useEffect(() => {
     const fetchConsentForm = async () => {
@@ -106,36 +187,36 @@ const [accepted, setAccepted] = useState(false);
   };
 
   const openImagePicker = async () => {
-  try {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      allowsMultipleSelection: true,
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
-    });
-    if (!result.canceled) {
-      const uris = result.assets.map((asset) => asset.uri);
-      setSelectedImages((prev) => [...prev, ...uris]);
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        allowsMultipleSelection: true,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.8,
+      });
+      if (!result.canceled) {
+        const uris = result.assets.map((asset) => asset.uri);
+        setSelectedImages((prev) => [...prev, ...uris]);
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Error", "Failed to pick images");
     }
-  } catch (error) {
-    console.error(error);
-    Alert.alert("Error", "Failed to pick images");
-  }
-};
+  };
 
-const openCamera = async () => {
-  try {
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
-    });
-    if (!result.canceled) {
-      setSelectedImages((prev) => [...prev, result.assets[0].uri]);
+  const openCamera = async () => {
+    try {
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.8,
+      });
+      if (!result.canceled) {
+        setSelectedImages((prev) => [...prev, result.assets[0].uri]);
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Error", "Failed to open camera");
     }
-  } catch (error) {
-    console.error(error);
-    Alert.alert("Error", "Failed to open camera");
-  }
-};
+  };
 
   const handleRadioSelect = (questionId: number, option: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: option }));
@@ -156,105 +237,105 @@ const openCamera = async () => {
   };
 
   //To pick multiple images in the concent form
-const uploadPhotos = async () => {
-  if (selectedImages.length === 0) {
-    Alert.alert("No photos selected", "Please choose at least one photo.");
-    return;
-  }
-
-  try {
-    setUploading(true);
-
-    console.log("🟡 Starting upload...");
-    console.log("Customer ID:", id);
-    console.log("Consultation ID:", consultationId);
-    console.log("Treatment ID:", treatmentId);
-    console.log("Appointment Type:", appointmentType);
-    console.log("Selected Images:", selectedImages);
-
-    const formData = new FormData();
-
-    // ✅ Append required fields
-    formData.append("customerId", id);
-    formData.append("formType", appointmentType); // 🔥 Required field (Consultation/Treatment)
-
-    if (appointmentType === "Treatment") {
-      // 👇 Treatment mode — send consultationId as 0
-      formData.append("consultationId", "0");
-      formData.append("treatmentId", treatmentId?.toString() || "0");
-    } else if (appointmentType === "Consultation") {
-      // 👇 Consultation mode — send treatmentId as 0
-      formData.append("consultationId", consultationId?.toString() || "0");
-      formData.append("treatmentId", "0");
-    } else {
-      console.warn("⚠️ Unknown appointmentType:", appointmentType);
-      formData.append("consultationId", "0");
-      formData.append("treatmentId", "0");
+  const uploadPhotos = async () => {
+    if (selectedImages.length === 0) {
+      Alert.alert("No photos selected", "Please choose at least one photo.");
+      return;
     }
 
-    // ✅ Append files (field name should be "files")
-    selectedImages.forEach((uri, index) => {
-      const filename = uri.split("/").pop() || `photo_${index}.jpg`;
-      const match = /\.(\w+)$/.exec(filename);
-      const type = match ? `image/${match[1]}` : `image/jpeg`;
+    try {
+      setUploading(true);
 
-      console.log(`🖼️ Adding file #${index + 1}:`, {
-        uri,
-        name: filename,
-        type,
+      console.log("🟡 Starting upload...");
+      console.log("Customer ID:", id);
+      console.log("Consultation ID:", consultationId);
+      console.log("Treatment ID:", treatmentId);
+      console.log("Appointment Type:", appointmentType);
+      console.log("Selected Images:", selectedImages);
+
+      const formData = new FormData();
+
+      // ✅ Append required fields
+      formData.append("customerId", id);
+      formData.append("formType", appointmentType); // 🔥 Required field (Consultation/Treatment)
+
+      if (appointmentType === "Treatment") {
+        // 👇 Treatment mode — send consultationId as 0
+        formData.append("consultationId", "0");
+        formData.append("treatmentId", treatmentId?.toString() || "0");
+      } else if (appointmentType === "Consultation") {
+        // 👇 Consultation mode — send treatmentId as 0
+        formData.append("consultationId", consultationId?.toString() || "0");
+        formData.append("treatmentId", "0");
+      } else {
+        console.warn("⚠️ Unknown appointmentType:", appointmentType);
+        formData.append("consultationId", "0");
+        formData.append("treatmentId", "0");
+      }
+
+      // ✅ Append files (field name should be "files")
+      selectedImages.forEach((uri, index) => {
+        const filename = uri.split("/").pop() || `photo_${index}.jpg`;
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : `image/jpeg`;
+
+        console.log(`🖼️ Adding file #${index + 1}:`, {
+          uri,
+          name: filename,
+          type,
+        });
+
+        formData.append("files", {
+          uri,
+          name: filename,
+          type,
+        } as any);
       });
 
-      formData.append("files", {
-        uri,
-        name: filename,
-        type,
-      } as any);
-    });
+      // 🧾 Log full FormData content (debug)
+      console.log("🧾 FormData contents:");
+      (formData as any)._parts?.forEach((p: any) => console.log("👉", p[0], "=", p[1]));
 
-    // 🧾 Log full FormData content (debug)
-    console.log("🧾 FormData contents:");
-    (formData as any)._parts?.forEach((p: any) => console.log("👉", p[0], "=", p[1]));
-
-    // ✅ Upload to API
-    const response = await api.post("/ConcentForm/upload/Concentform", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
-
-    console.log("✅ Upload successful:", response.data);
-    Alert.alert("Success", "Photos uploaded successfully!");
-
-    setUploadModalVisible(false);
-    setSelectedImages([]);
-
-    // ✅ Navigate next
-    if (appointmentType === "Treatment") {
-      navigation.navigate("StartTreatment", {
-        formData: { customerId: id, consultationId: 0, treatmentId },
+      // ✅ Upload to API
+      const response = await api.post("/ConcentForm/upload/Concentform", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
       });
-    } else {
-      navigation.navigate("Startconsultation", {
-        customerId: id,
-        consultationId,
-      });
+
+      console.log("✅ Upload successful:", response.data);
+      Alert.alert("Success", "Photos uploaded successfully!");
+
+      setUploadModalVisible(false);
+      setSelectedImages([]);
+
+      // ✅ Navigate next
+      if (appointmentType === "Treatment") {
+        navigation.navigate("StartTreatment", {
+          formData: { customerId: id, consultationId: 0, treatmentId },
+        });
+      } else {
+        navigation.navigate("Startconsultation", {
+          customerId: id,
+          consultationId,
+        });
+      }
+    } catch (error: any) {
+      console.error("❌ Upload error:", error);
+      if (error.response) {
+        console.log("🔴 Server responded with:", error.response.data);
+        console.log("🔴 Status code:", error.response.status);
+        console.log("🔴 Headers:", error.response.headers);
+      } else if (error.request) {
+        console.log("⚠️ No response received:", error.request);
+      } else {
+        console.log("💥 Error creating request:", error.message);
+      }
+      Alert.alert("Error", "Failed to upload photos");
+    } finally {
+      setUploading(false);
     }
-  } catch (error: any) {
-    console.error("❌ Upload error:", error);
-    if (error.response) {
-      console.log("🔴 Server responded with:", error.response.data);
-      console.log("🔴 Status code:", error.response.status);
-      console.log("🔴 Headers:", error.response.headers);
-    } else if (error.request) {
-      console.log("⚠️ No response received:", error.request);
-    } else {
-      console.log("💥 Error creating request:", error.message);
-    }
-    Alert.alert("Error", "Failed to upload photos");
-  } finally {
-    setUploading(false);
-  }
-};
+  };
   const handleDownloadPDF = async () => {
     try {
       if (!form) {
@@ -345,15 +426,15 @@ const uploadPhotos = async () => {
   return (
     <View className="flex-1 bg-white">
       <ScrollView className="flex-1 px-5 mt-10">
-<View className="flex-row items-center justify-between mb-6 mt-[10%]">
-  <Text className="text-xl font-bold">{form?.formName}</Text>
-  <TouchableOpacity
-    onPress={() => setViewFormModalVisible(true)}
-    className="bg-primary px-4 py-2 rounded-lg"
-  >
-    <Text className="text-white font-semibold">View Forms</Text>
-  </TouchableOpacity>
-</View>
+        <View className="flex-row items-center justify-between mb-6 mt-[10%]">
+          <Text className="text-xl font-bold">{form?.formName}</Text>
+          <TouchableOpacity
+            onPress={() => setViewFormModalVisible(true)}
+            className="bg-primary px-4 py-2 rounded-lg"
+          >
+            <Text className="text-white font-semibold">View Forms</Text>
+          </TouchableOpacity>
+        </View>
 
         {form?.questions
           .filter((q) => q.parentQuestionId === null)
@@ -503,89 +584,91 @@ const uploadPhotos = async () => {
       </ScrollView>
 
       {/* 🟩 Upload Photo Modal */}
-<Modal
-  visible={uploadModalVisible}
-  transparent
-  animationType="slide"
-  onRequestClose={() => setUploadModalVisible(false)}
->
-  <View className="flex-1 bg-black/50 justify-center items-center px-5">
-    <View className="bg-white w-full rounded-2xl p-6 max-h-[85%]">
-      <Text className="text-xl font-semibold text-center mb-4">
-        Upload Consent Form
-      </Text>
-
-<View className="flex-row justify-center mb-3 gap-x-3">
-  <TouchableOpacity
-    onPress={openCamera}
-    className="bg-gray-200 flex-row items-center px-4 py-3 rounded-lg"
-  >
-    <Camera size={20} color="#333" />
-    <Text className="text-gray-800 ml-2">Camera</Text>
-  </TouchableOpacity>
-
-  <TouchableOpacity
-    onPress={openImagePicker}
-    className="bg-gray-200 flex-row items-center px-4 py-3 rounded-lg"
-  >
-    <ImageIcon size={20} color="#333" />
-    <Text className="text-gray-800 ml-2">Gallery</Text>
-  </TouchableOpacity>
-</View>
-
-      <ScrollView
-        className="mt-3"
-        contentContainerStyle={{ alignItems: "center" }}
+      <Modal
+        visible={uploadModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setUploadModalVisible(false)}
       >
-        {selectedImages.length > 0 ? (
-          selectedImages.map((uri, index) => (
-            <View key={index} className="relative mb-4">
-              <Image
-                source={{ uri }}
-                className="w-72 h-64 rounded-xl"
-                resizeMode="cover"
-              />
+        <View className="flex-1 bg-black/50 justify-center items-center px-5">
+          <View className="bg-white w-full rounded-2xl p-6 max-h-[85%]">
+            <Text className="text-xl font-semibold text-center mb-4">
+              Upload Consent Form
+            </Text>
+
+            <View className="flex-row justify-center mb-3 gap-x-3">
               <TouchableOpacity
-                onPress={() =>
-                  setSelectedImages((prev) => prev.filter((_, i) => i !== index))
-                }
-                className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded-full"
+                onPress={openCamera}
+                className="bg-gray-200 flex-row items-center px-4 py-3 rounded-lg"
               >
-                <Text className="text-white text-xs">✕</Text>
+                <Camera size={20} color="#333" />
+                <Text className="text-gray-800 ml-2">Camera</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={openImagePicker}
+                className="bg-gray-200 flex-row items-center px-4 py-3 rounded-lg"
+              >
+                <ImageIcon size={20} color="#333" />
+                <Text className="text-gray-800 ml-2">Gallery</Text>
               </TouchableOpacity>
             </View>
-          ))
-        ) : (
-          <Text className="text-gray-500 mt-4">No photos selected yet.</Text>
-        )}
-      </ScrollView>
 
-      <View className="flex-row justify-between mt-4">
-        <TouchableOpacity
-          onPress={() => setUploadModalVisible(false)}
-          className="flex-1 bg-gray-200 py-3 rounded-xl mr-2"
-        >
-          <Text className="text-center text-gray-700 font-semibold">
-            Cancel
-          </Text>
-        </TouchableOpacity>
+            <ScrollView
+              className="mt-3"
+              contentContainerStyle={{ alignItems: "center" }}
+            >
+              {selectedImages.length > 0 ? (
+                selectedImages.map((uri, index) => (
+                  <View key={index} className="relative mb-4">
+                    <Image
+                      source={{ uri }}
+                      className="w-72 h-64 rounded-xl"
+                      resizeMode="cover"
+                    />
+                    <TouchableOpacity
+                      onPress={() =>
+                        setSelectedImages((prev) => prev.filter((_, i) => i !== index))
+                      }
+                      className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded-full"
+                    >
+                      <Text className="text-white text-xs">✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))
+              ) : (
+                <Text className="text-gray-500 mt-4">No photos selected yet.</Text>
+              )}
+            </ScrollView>
 
-        <TouchableOpacity
-          disabled={uploading || selectedImages.length === 0}
-          onPress={uploadPhotos}
-          className={`flex-1 ${
-            selectedImages.length > 0 ? "bg-blue-500" : "bg-gray-300"
-          } py-3 rounded-xl ml-2`}
-        >
-          <Text className="text-center text-white font-semibold">
-            {uploading ? "Uploading..." : "Upload"}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  </View>
-</Modal>
+            <View className="flex-row justify-between mt-4">
+              <TouchableOpacity
+                onPress={() => setUploadModalVisible(false)}
+                className="flex-1 bg-gray-200 py-3 rounded-xl mr-2"
+              >
+                <Text className="text-center text-gray-700 font-semibold">
+                  Cancel
+                </Text>
+              </TouchableOpacity>
 
+              <TouchableOpacity
+                disabled={uploading || selectedImages.length === 0}
+                onPress={uploadPhotos}
+                className={`flex-1 ${
+                  selectedImages.length > 0 ? "bg-blue-500" : "bg-gray-300"
+                } py-3 rounded-xl ml-2`}
+              >
+                <Text className="text-center text-white font-semibold">
+                  {uploading ? "Uploading..." : "Upload"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ------------------ View Form Images Modal (UPDATED) ------------------ */}
+{/* ------------------ View Form Images Modal (UPDATED) ------------------ */}
 <Modal
   visible={viewFormModalVisible}
   transparent
@@ -594,6 +677,8 @@ const uploadPhotos = async () => {
 >
   <View className="flex-1 bg-black/60 justify-center items-center px-5">
     <View className="bg-white w-full rounded-2xl p-6 max-h-[85%]">
+
+      {/* Header */}
       <View className="flex-row justify-between items-center mb-4">
         <Text className="text-xl font-semibold">View Form Images</Text>
         <TouchableOpacity
@@ -604,54 +689,106 @@ const uploadPhotos = async () => {
         </TouchableOpacity>
       </View>
 
+      {/* Dropdowns */}
+<View className="mb-4">
+  <Text className="text-gray-700 mb-1 font-medium">View Form Images</Text>
+
+  {/* Two side-by-side dropdowns */}
+  <View className="flex-row justify-between">
+    {/* Form Type Picker */}
+    <View className="flex-1 border border-gray-300 rounded-lg mr-2">
+      <Picker
+        mode="dropdown"
+        selectedValue={formType}
+        onValueChange={(value) => {
+          setFormType(value);
+          fetchFilledForms(value);
+        }}
+      >
+        <Picker.Item label="Form Type" value="" />
+        <Picker.Item label="Consultation" value="Consultation" />
+        <Picker.Item label="Treatment" value="Treatment" />
+      </Picker>
+    </View>
+
+    {/* Date Picker */}
+    <View className="flex-1 border border-gray-300 rounded-lg ml-2">
+      <Picker
+        mode="dropdown"
+        selectedValue={selectedDate}
+        enabled={availableForms.length > 0}
+        onValueChange={(value) => {
+          setSelectedDate(value);
+          const selected = availableForms.find((f) => f.date === value);
+          setFormImages(selected?.pdfLocations || []);
+        }}
+      >
+        <Picker.Item
+          label={
+            availableForms.length > 0
+              ? "Select Date"
+              : "No forms available"
+          }
+          value=""
+        />
+        {availableForms.map((f, idx) => (
+          <Picker.Item key={idx} label={f.date} value={f.date} />
+        ))}
+      </Picker>
+    </View>
+  </View>
+</View>
+
+
+      {/* Images Scroll */}
       <ScrollView
         className="mt-3"
         contentContainerStyle={{ alignItems: "center" }}
       >
-        {/* Replace with your actual form images */}
-        <Image
-          source={{ uri: "https://www.transformeddesign.com/wp-content/uploads/2017/12/Websites-Add-On_ONLINE-FORMS-_ONLINE-FORMS-.jpg" }}
-          className="w-72 h-96 rounded-xl mb-4"
-          resizeMode="contain"
-        />
-        <Image
-          source={{ uri: "https://img.freepik.com/free-vector/registration-form_23-2147981316.jpg?semt=ais_hybrid&w=740&q=80" }}
-          className="w-72 h-96 rounded-xl mb-4"
-          resizeMode="contain"
-        />
+        {loadingForms ? (
+          <ActivityIndicator size="large" color="#0D6EFD" />
+        ) : formImages.length > 0 ? (
+          formImages.map((uri, index) => (
+            <Image
+              key={index}
+              source={{ uri }}
+              className="w-72 h-96 rounded-xl mb-4"
+              resizeMode="contain"
+            />
+          ))
+        ) : (
+          <Text className="text-gray-500 mt-4">
+            No images available for selected date.
+          </Text>
+        )}
       </ScrollView>
 
+      {/* Acceptance Checkbox */}
       <View className="flex-row items-center mt-2 mb-3">
-  <TouchableOpacity
-    onPress={() => setAccepted(!accepted)}
-    className="w-6 h-6 border-2 border-gray-400 rounded-md mr-2 items-center justify-center"
-  >
-    {accepted && <View className="w-3.5 h-3.5 bg-primary rounded-sm" />}
-  </TouchableOpacity>
-  <Text className="flex-1 text-gray-700">
-    I have read the consent form and accept it.
-  </Text>
-</View>
+        <TouchableOpacity
+          onPress={() => setAccepted(!accepted)}
+          className="w-6 h-6 border-2 border-gray-400 rounded-md mr-2 items-center justify-center"
+        >
+          {accepted && <View className="w-3.5 h-3.5 bg-primary rounded-sm" />}
+        </TouchableOpacity>
+        <Text className="flex-1 text-gray-700">
+          I have read the consent form and accept it.
+        </Text>
+      </View>
 
-<TouchableOpacity
-  disabled={!accepted}
-  onPress={() => setViewFormModalVisible(false)}
-  className={`py-3 rounded-xl mt-3 ${
-    accepted ? "bg-primary" : "bg-gray-300"
-  }`}
->
-  <Text
-    className={`text-center font-semibold ${
-      accepted ? "text-white" : "text-gray-500"
-    }`}
-  >
-    Submit
-  </Text>
-</TouchableOpacity>
+      {/* Submit Button */}
+      <TouchableOpacity
+        disabled={!accepted}
+        onPress={() => setViewFormModalVisible(false)}
+        className={`py-3 rounded-xl mt-3 ${accepted ? "bg-primary" : "bg-gray-300"}`}
+      >
+        <Text className={`text-center font-semibold ${accepted ? "text-white" : "text-gray-500"}`}>
+          Submit
+        </Text>
+      </TouchableOpacity>
     </View>
   </View>
 </Modal>
-
 
 
       <Navbar />

@@ -36,6 +36,7 @@ type RootStackParamList = {
     formData: { customerId: string; consultationId: number; treatmentId: number; answers: any; photos?: (string | null)[] } 
   }
   Appointments: { customerId: string; photos?: (string | null)[] }
+  MedicalReports: { customerId: string }
   ConsentForm: { consultationId: number; customerId: string }
   Profile: { id: string }
   TreatmentConcentform: { Name:string,customerId: string; treatmentId: number }
@@ -249,7 +250,7 @@ const handleUploadAfterPhotos = async () => {
         
         <TouchableOpacity
                     className="bg-primary p-1 rounded-lg w-[130px] items-center justify-center"
-                    onPress={() => navigation.navigate('Appoinments', { customerId })}
+                    onPress={() => navigation.navigate('MedicalReports', { customerId })}
                   >
                     <Text className="text-white text-xs font-bold text-center">View Medical Reports</Text>
                   </TouchableOpacity>

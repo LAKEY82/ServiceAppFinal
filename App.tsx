@@ -16,6 +16,7 @@ import StartTreatment from "./Screens/StartTreatment";
 import ConsentForm from "./Screens/ConsentForm";
 import TreatmentConcentForm from "./Screens/TreatmentConcentForm";
 import TreatmentAfterPhoto from "./Screens/TreatmentAfterPhoto";
+import MedicalReports from "./Screens/MedicalReports";
 export type RootStackParamList = {
   Splash: undefined;
   Login: undefined;
@@ -29,6 +30,7 @@ export type RootStackParamList = {
   ConsentForm:undefined;
   TreatmentConcentform:undefined;
   TreatmentAfterPhoto:undefined;
+  MedicalReports:undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -50,6 +52,7 @@ export default function App() {
         <Stack.Screen name="ConsentForm" options={{ headerShown: false }} component={ConsentForm} />
         <Stack.Screen name="TreatmentConcentform" options={{ headerShown: false }} component={TreatmentConcentForm} />
         <Stack.Screen name="TreatmentAfterPhoto" options={{ headerShown: false }} component={TreatmentAfterPhoto} />
+        <Stack.Screen name="MedicalReports" options={{ headerShown: false }} component={MedicalReports} />
       </Stack.Navigator>
     </NavigationContainer>
     </SafeAreaProvider>
