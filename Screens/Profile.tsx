@@ -630,16 +630,23 @@ console.log("🧩 Final Profile URL:", finalUrl);
   activeOpacity={0.7}
   className="self-center mt-10 mb-4"
 >
-  {selectedPhoto ? (
-    <Image
-      source={{ uri: selectedPhoto.uri }}
-      className="w-[200px] h-[200px] rounded-full"
-    />
-  ) : (
-    <View className="w-[200px] h-[200px] bg-gray-200 rounded-full items-center justify-center">
-      <Text className="text-gray-500 text-sm">Tap to choose photo</Text>
-    </View>
-  )}
+{selectedPhoto ? (
+  <Image
+    source={{ uri: selectedPhoto.uri }}
+    className="w-[200px] h-[200px] rounded-full"
+  />
+) : finalUrl ? (
+  <Image
+    source={{ uri: encodeURI(finalUrl) }}
+    className="w-[200px] h-[200px] rounded-full"
+  />
+) : (
+  <Image
+    source={require("../assets/pp.jpg")}
+    className="w-[200px] h-[200px] rounded-full"
+  />
+)}
+
 </TouchableOpacity>
 
 <View className="flex-row items-center justify-center mt-10">

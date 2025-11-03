@@ -87,7 +87,7 @@ const Dashboard = () => {
 
       try {
         const treatmentRes = await api.get(
-          `/TreatmentAppointment/treatment/All`
+          `/TreatmentAppointment/treatment/${userData.supervisorSmid}`
         );
         setTreatments(treatmentRes.data || []);
       } catch (err: any) {
@@ -348,6 +348,7 @@ const Dashboard = () => {
           <View className="flex-row bg-[#E0F7FF] rounded-full p-1 w-[220px] h-[46px]">
             <TouchableOpacity
               onPress={() => setViewType("consultation")}
+              activeOpacity={1}
               className={`flex-1 justify-center items-center rounded-full ${
                 viewType === "consultation" ? "bg-[#0077A8]" : ""
               }`}
@@ -365,6 +366,7 @@ const Dashboard = () => {
 
             <TouchableOpacity
               onPress={() => setViewType("treatment")}
+              activeOpacity={1}
               className={`flex-1 justify-center items-center rounded-full ${
                 viewType === "treatment" ? "bg-[#0077A8]" : ""
               }`}
@@ -397,6 +399,7 @@ const Dashboard = () => {
         <View className="flex-row justify-between mb-4">
           {buttons.map((btn, index) => (
             <TouchableOpacity
+            activeOpacity={1}
               key={index}
               onPress={() => setSelected(selected === btn ? null : btn)}
               className={`px-4 py-4 rounded-lg w-[32%] bg-white h-20`}

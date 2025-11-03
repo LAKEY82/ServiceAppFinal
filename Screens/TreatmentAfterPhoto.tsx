@@ -81,6 +81,10 @@ console.log("StartTreatment screen received treatmentId:", treatmentId);
     setBeforePhotos(updated)
   }
 }
+  // 🖼️ Safely build the correct image URL
+const baseUrl = "https://chrimgtapp.xenosyslab.com";
+let finalUrl = null;
+
   /** ---------- Fetch client ---------- **/
   useEffect(() => {
     const fetchClient = async () => {
@@ -88,13 +92,14 @@ console.log("StartTreatment screen received treatmentId:", treatmentId);
       try {
         const res = await api.get(`/ClientProfile/clientprofile/${customerId}`)
         const data = res.data
+        console.log("Client Profile Response:", res.data)
         setClient({
           id: data.id,
           fullName: `${data.salutation ?? ''} ${data.fname ?? ''} ${data.lname ?? ''}`.trim() || 'Unknown',
           phone: data.mobileNo ?? 'N/A',
           appointmentTime: data.appointmentTime,
           treatmentName: data.treatmentName,
-          profilePhotoUrl: data.profilePhotoUrl,
+          profilePhotoUrl: data.profilePic,
         })
       } catch (err) {
         console.error('Failed to fetch client profile:', err)
@@ -105,6 +110,16 @@ console.log("StartTreatment screen received treatmentId:", treatmentId);
     }
     fetchClient()
   }, [customerId])
+
+      //Join the base url with the profile photo url
+  const fullImageUrl = client?.profilePhotoUrl
+  ? `${baseUrl}/${client.profilePhotoUrl
+      .replace(/\\/g, "/")            // ✅ Convert backslashes to slashes
+      .replace(/^\//, "")             // ✅ Remove leading slash
+      .trim()}`                       // ✅ Remove spaces
+  : null;
+
+console.log("Full Image URL:", fullImageUrl);
 
   /** ---------- Fetch treatments & remarks ---------- **/
   useEffect(() => {
@@ -220,10 +235,10 @@ const handleUploadAfterPhotos = async () => {
 
     return (
       <>
-        <Image
-          source={client.profilePhotoUrl ? { uri: client.profilePhotoUrl } : require('../assets/pp.jpg')}
-          className="w-16 h-16 rounded-full"
-        />
+<Image
+  source={fullImageUrl ? { uri: fullImageUrl } : require('../assets/pp.jpg')}
+  className="w-16 h-16 rounded-full"
+/>
         <View className="flex-col ml-2">
           <Text className="text-black text-sm font-bold">{client.fullName}</Text>
           <Text className="font-medium text-xs">{client.phone}</Text>
@@ -317,6 +332,7 @@ const handleUploadAfterPhotos = async () => {
 
       return (
         <TouchableOpacity
+        activeOpacity={1}
           key={idx}
           onPress={() => pickAfterPhoto(idx)}
           onLongPress={() => {

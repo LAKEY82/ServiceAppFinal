@@ -141,46 +141,83 @@ const ConcentFill = () => {
     }
   }, [viewFormModalVisible]);
 
-  useEffect(() => {
-    const fetchConsentForm = async () => {
-      try {
-        setLoading(true);
-        let endpoint = "";
+useEffect(() => {
+  const fetchConsentForm = async () => {
+    try {
+      setLoading(true);
+      let endpoint = "";
 
-        if (appointmentType === "Consultation") {
-          endpoint = `/ConcentForm/concent/consultation/${consultationId}`;
-        } else if (appointmentType === "Treatment") {
-          if (!treatmentId) {
-            setError("Treatment ID is missing for treatment consent form.");
-            setLoading(false);
-            return;
-          }
-          endpoint = `/ConcentForm/concent/treatment/${treatmentId}`;
-        } else {
-          setError("Invalid appointment type.");
+      // 🟢 If initialStatus is "notfilled", use InitialConcent API
+      if (initialStatus === "notfilled") {
+        endpoint = `/ConcentForm/concent/InitialConcent`;
+      } 
+      // 🟡 Otherwise, use the appropriate endpoint
+      else if (appointmentType === "Consultation") {
+        endpoint = `/ConcentForm/concent/consultation/${consultationId}`;
+      } 
+      else if (appointmentType === "Treatment") {
+        if (!treatmentId) {
+          setError("Treatment ID is missing for treatment consent form.");
           setLoading(false);
           return;
         }
-
-        const response = await api.get(endpoint);
-        const data: ConsentForm[] = response.data;
-        console.log("Consent form data:", JSON.stringify(data, null, 2));
-
-        if (data.length > 0) {
-          setForm(data[0]);
-        } else {
-          setError("No consent form found.");
-        }
-      } catch (err: any) {
-        console.error(err);
-        setError("Failed to load consent form.");
-      } finally {
+        endpoint = `/ConcentForm/concent/treatment/${treatmentId}`;
+      } 
+      else {
+        setError("Invalid appointment type.");
         setLoading(false);
+        return;
       }
-    };
 
-    fetchConsentForm();
-  }, [appointmentType, consultationId, treatmentId]);
+      console.log("📡 Fetching consent form from:", endpoint);
+
+      // 🧠 Fetch data via your configured base URL
+      const response = await api.get(endpoint, {
+        params:
+          initialStatus === "notfilled"
+            ? { customerId: id, consultationId: consultationId || 0 }
+            : {},
+      });
+
+      const data = response.data;
+      console.log("🟢 Consent form API response:", JSON.stringify(data, null, 2));
+
+      let formData: ConsentForm | null = null;
+
+      // ✅ Handle three cases:
+      // 1. Array of questions
+      // 2. Array of form objects
+      // 3. Single form object
+      if (Array.isArray(data)) {
+        if (data.length > 0 && data[0].questionText) {
+          // Case 1: response is directly a list of questions
+          formData  = { id: 0, formName: "Auto Form",  consultationId: consultationId || 0,  questions: data };
+        } else {
+          // Case 2: response is an array of form objects
+          formData = data[0];
+        }
+      } else if (typeof data === "object" && data !== null) {
+        // Case 3: single form object
+        formData = data;
+      }
+
+      if (formData && Array.isArray(formData.questions)) {
+        setForm(formData);
+      } else {
+        setError("No consent form questions found.");
+      }
+    } catch (err: any) {
+      console.error("❌ Error fetching consent form:", err);
+      setError("Failed to load consent form.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchConsentForm();
+}, [appointmentType, consultationId, treatmentId, initialStatus]);
+
+
 
   const handleTextChange = (questionId: number, text: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: text }));
