@@ -12,16 +12,16 @@ import React, { useState, useEffect } from "react";
 import Navbar from "../components/Navbar";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import api from "../API/api";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const Appoinments = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const { customerId,treatmentId} = route.params;
+  const { customerId, treatmentId } = route.params;
   // Cart & Treatments
   const [cartSideVisible, setCartSideVisible] = useState(false);
   const [treatmentData, setTreatmentData] = useState<any[]>([]);
   const [packageTreatments, setPackageTreatments] = useState<any[]>([]);
-
   const [cartItems, setCartItems] = useState<any[]>([
     {
       id: 1,
@@ -35,11 +35,145 @@ const Appoinments = () => {
   // Timer
   const [seconds, setSeconds] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
-
+  const [savedTreatmentAppointmentId, setSavedTreatmentAppointmentId] =
+    useState<number | null>(null);
   // Rating Modal
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [rating, setRating] = useState(0);
   const [remark, setRemark] = useState("");
+  const [treatmentAppointmentData, setTreatmentAppointmentData] =
+    useState<any>(null);
+  // Add this below other useState declarations
+  const [timerColor, setTimerColor] = useState("black");
+
+  // ⏱ Convert time string (e.g. "09:00 AM") to a Date object
+  const parseTimeToSeconds = (timeStr: string) => {
+    if (!timeStr) return null;
+    const [time, modifier] = timeStr.split(" ");
+    let [hours, minutes] = time.split(":").map(Number);
+
+    if (modifier === "PM" && hours < 12) hours += 12;
+    if (modifier === "AM" && hours === 12) hours = 0;
+
+    const date = new Date();
+    date.setHours(hours, minutes, 0, 0);
+    return date.getTime() / 1000; // return seconds
+  };
+
+  useEffect(() => {
+    if (
+      !treatmentAppointmentData?.startTime ||
+      !treatmentAppointmentData?.endTime
+    )
+      return;
+
+    const startSec = parseTimeToSeconds(treatmentAppointmentData.startTime);
+    const endSec = parseTimeToSeconds(treatmentAppointmentData.endTime);
+    const totalDuration = (endSec as any) - (startSec as any);
+
+    if (totalDuration > 0) {
+      // Every time seconds update, change color
+      if (seconds >= totalDuration) {
+        setTimerColor("red"); // ⏰ Overtime
+      } else if (seconds >= totalDuration / 2) {
+        setTimerColor("yellow"); // ⚠️ Halfway through
+      } else {
+        setTimerColor("black"); // ✅ Normal
+      }
+    }
+  }, [seconds, treatmentAppointmentData]);
+
+  useEffect(() => {
+    const loadAppointmentId = async () => {
+      try {
+        const id = await AsyncStorage.getItem("treatmentAppointmentId");
+
+        console.log("✅ Loaded treatmentAppointmentId from Async:", id);
+
+        if (id) {
+          setSavedTreatmentAppointmentId(Number(id));
+        } else {
+          console.log("⚠️ No treatmentAppointmentId found in AsyncStorage");
+        }
+      } catch (error) {
+        console.log("❌ Error reading treatmentAppointmentId:", error);
+      }
+    };
+
+    loadAppointmentId();
+  }, []);
+
+  useEffect(() => {
+    if (savedTreatmentAppointmentId !== null) {
+      console.log(
+        "📡 Calling API with loaded AppointmentId:",
+        savedTreatmentAppointmentId
+      );
+      fetchTreatmentAppointmentData(savedTreatmentAppointmentId);
+    }
+  }, [savedTreatmentAppointmentId]);
+
+  //Get the treatmentData
+  const fetchTreatmentAppointmentData = async (appointmentId: number) => {
+    try {
+      console.log(
+        "🚀 Calling API (endpoint only): /Treatment/treatmentData/" +
+          appointmentId
+      );
+
+      console.log(
+        "🌐 FINAL API URL:",
+        `${api.defaults.baseURL}/Treatment/treatmentData/${appointmentId}`
+      );
+
+      const res = await api.get(`/Treatment/treatmentData/${appointmentId}`);
+
+      console.log("✅ Treatment Appointment Data Response:", res.data);
+
+      setTreatmentAppointmentData(res.data.data);
+    } catch (err: any) {
+      console.log(
+        "❌ Error fetching treatment appointment data:",
+        err.response?.data || err.message
+      );
+    }
+  };
+
+  // ✅ START Treatment Timer API
+  const startTreatmentAppointment = async () => {
+    if (!savedTreatmentAppointmentId) {
+      Alert.alert("Error", "No appointment ID found.");
+      return;
+    }
+
+    try {
+      const res = await api.post("/Treatment/treatment-appointment/start", {
+        appointmentId: savedTreatmentAppointmentId,
+      });
+      console.log("✅ Start API Response:", res.data);
+    } catch (err: any) {
+      console.log("❌ Start API Error:", err.response?.data || err.message);
+      Alert.alert("Error", "Failed to start treatment appointment.");
+    }
+  };
+
+  // ✅ STOP Treatment Timer API
+  const stopTreatmentAppointment = async () => {
+    if (!savedTreatmentAppointmentId) {
+      Alert.alert("Error", "No appointment ID found.");
+      return;
+    }
+
+    try {
+      const res = await api.post("/Treatment/treatment-appointment/stop", {
+        appointmentId: savedTreatmentAppointmentId,
+      });
+      console.log("✅ Stop API Response:", res.data);
+    } catch (err: any) {
+      console.log("❌ Stop API Error:", err.response?.data || err.message);
+      Alert.alert("Error", "Failed to stop treatment appointment.");
+    }
+  };
 
   // Fetch Treatments & Packages
   useEffect(() => {
@@ -51,7 +185,9 @@ const Appoinments = () => {
         const treatmentRes = await api.get(`/Treatment/${customerId}`);
         setTreatmentData(treatmentRes.data);
 
-        const packageRes = await api.get(`/Treatment/Treatmentpackages/${customerId}`);
+        const packageRes = await api.get(
+          `/Treatment/Treatmentpackages/${customerId}`
+        );
         const flattened: any[] = [];
         packageRes.data.forEach((pkgObj: any) => {
           const { quotationNo, package: pkg, treatments } = pkgObj;
@@ -86,8 +222,12 @@ const Appoinments = () => {
   }, [isRunning]);
 
   const formatTime = (sec: number) => {
-    const h = Math.floor(sec / 3600).toString().padStart(2, "0");
-    const m = Math.floor((sec % 3600) / 60).toString().padStart(2, "0");
+    const h = Math.floor(sec / 3600)
+      .toString()
+      .padStart(2, "0");
+    const m = Math.floor((sec % 3600) / 60)
+      .toString()
+      .padStart(2, "0");
     const s = (sec % 60).toString().padStart(2, "0");
     return `${h}:${m}:${s}`;
   };
@@ -115,16 +255,17 @@ const Appoinments = () => {
   const decreaseQty = (id: string) =>
     setCartItems((items) =>
       items.map((item) =>
-        item.id === id && item.qty > 1
-          ? { ...item, qty: item.qty - 1 }
-          : item
+        item.id === id && item.qty > 1 ? { ...item, qty: item.qty - 1 } : item
       )
     );
 
   const removeItem = (id: string) =>
     setCartItems((items) => items.filter((item) => item.id !== id));
 
-  const subtotal = cartItems.reduce((acc, item) => acc + item.price * item.qty, 0);
+  const subtotal = cartItems.reduce(
+    (acc, item) => acc + item.price * item.qty,
+    0
+  );
   const discount = subtotal * 0.05;
   const balance = subtotal - discount;
 
@@ -132,7 +273,7 @@ const Appoinments = () => {
     <View className="flex-1 bg-white">
       {/* Top Card with Timer */}
       <View className="w-[95%] h-[25%] bg-secondary gap-x-6 p-5 mt-[15%] mx-auto flex-col items-center justify-center rounded-xl space-y-4">
-        <Text className="text-black text-[60px] font-bold">
+        <Text style={{ color: timerColor }} className="text-[60px] font-bold">
           {formatTime(seconds)}
         </Text>
         <View className="flex-row gap-x-4 mt-[5%]">
@@ -140,12 +281,13 @@ const Appoinments = () => {
             className={`px-4 py-2 w-[30%] items-center rounded-lg ${
               isRunning ? "bg-red-500" : "bg-primary"
             }`}
-            onPress={() => {
+            onPress={async () => {
               if (isRunning) {
-                // End pressed: stop timer and show rating modal
                 setIsRunning(false);
+                await stopTreatmentAppointment(); // ✅ STOP API call
                 setShowRatingModal(true);
               } else {
+                await startTreatmentAppointment(); // ✅ START API call
                 setIsRunning(true);
               }
             }}
@@ -164,6 +306,16 @@ const Appoinments = () => {
             <Text className="text-black font-bold text-sm">Pause</Text>
           </TouchableOpacity>
         </View>
+        {treatmentAppointmentData && (
+          <View className="mt-3 flex-row items-center justify-center gap-x-6">
+            <Text className="text-black text-sm">
+              ⏳ {treatmentAppointmentData.startTime || "Not started"}
+            </Text>
+            <Text className="text-black text-sm">
+              🔚 {treatmentAppointmentData.endTime || "Not ended"}
+            </Text>
+          </View>
+        )}
       </View>
 
       <ScrollView className="flex-1 px-4 mt-4 mb-16">
@@ -173,7 +325,9 @@ const Appoinments = () => {
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View>
               <View className="flex-row bg-gray-200 p-2 rounded-md">
-                <Text className="w-40 font-semibold text-xs">Treatment Name</Text>
+                <Text className="w-40 font-semibold text-xs">
+                  Treatment Name
+                </Text>
                 <Text className="w-32 font-semibold text-xs">Billing Name</Text>
                 <Text className="w-24 font-semibold text-xs">Duration</Text>
                 <Text className="w-24 font-semibold text-xs">Price</Text>
@@ -186,7 +340,9 @@ const Appoinments = () => {
                 >
                   <Text className="w-40 text-xs">{t.tname}</Text>
                   <Text className="w-32 text-xs">{t.billingName}</Text>
-                  <Text className="w-24 text-xs">{t.timeDuration || 0} min</Text>
+                  <Text className="w-24 text-xs">
+                    {t.timeDuration || 0} min
+                  </Text>
                   <Text className="w-24 text-xs">Rs. {t.price}</Text>
                   <View className="w-28">
                     <TouchableOpacity
@@ -213,14 +369,18 @@ const Appoinments = () => {
 
         {/* Package Treatments Table */}
         <View className="bg-gray-50 p-3 rounded-xl mb-16 shadow-sm">
-          <Text className="font-bold text-base mb-2">🎁 Package Treatments</Text>
+          <Text className="font-bold text-base mb-2">
+            🎁 Package Treatments
+          </Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View>
               <View className="flex-row bg-gray-200 p-2 rounded-md">
                 <Text className="w-28 font-semibold text-xs">Quotation No</Text>
                 <Text className="w-40 font-semibold text-xs">Package Name</Text>
                 <Text className="w-32 font-semibold text-xs">Package Type</Text>
-                <Text className="w-40 font-semibold text-xs">Treatment Name</Text>
+                <Text className="w-40 font-semibold text-xs">
+                  Treatment Name
+                </Text>
                 <Text className="w-24 font-semibold text-xs">Duration</Text>
                 <Text className="w-24 font-semibold text-xs">Price</Text>
                 <Text className="w-28 font-semibold text-xs">Action</Text>
@@ -280,7 +440,10 @@ const Appoinments = () => {
             <Text className="text-lg font-bold mb-4">Cart</Text>
             <ScrollView>
               {cartItems.map((item) => (
-                <View key={item.id} className="flex-row items-center border-b py-2">
+                <View
+                  key={item.id}
+                  className="flex-row items-center border-b py-2"
+                >
                   <Image source={item.img} className="w-12 h-12 rounded mr-2" />
                   <View className="flex-1">
                     <Text className="font-semibold text-sm">{item.name}</Text>
@@ -378,27 +541,29 @@ const Appoinments = () => {
                 <Text className="text-black font-bold">Cancel</Text>
               </TouchableOpacity>
 
-<TouchableOpacity
-  className="bg-primary px-6 py-3 rounded-full w-[45%] items-center"
-  onPress={() => {
-    console.log("⭐ Rating:", rating);
-    console.log("📝 Remark:", remark);
-    Alert.alert("Thank You!", "Your feedback has been submitted.");
-    setShowRatingModal(false);
-    setRating(0);
-    setRemark("");
+              <TouchableOpacity
+                className="bg-primary px-6 py-3 rounded-full w-[45%] items-center"
+                onPress={() => {
+                  console.log("⭐ Rating:", rating);
+                  console.log("📝 Remark:", remark);
+                  Alert.alert(
+                    "Thank You!",
+                    "Your feedback has been submitted."
+                  );
+                  setShowRatingModal(false);
+                  setRating(0);
+                  setRemark("");
 
-    navigation.navigate("TreatmentAfterPhoto", {
-      formData: {
-        customerId: customerId,       // ✅ same one from current screen
-        treatmentId: treatmentId,    // ✅ include answers if any
-      },
-    });
-  }}
->
-  <Text className="text-white font-bold">Submit</Text>
-</TouchableOpacity>
-
+                  navigation.navigate("TreatmentAfterPhoto", {
+                    formData: {
+                      customerId: customerId, // ✅ same one from current screen
+                      treatmentId: treatmentId, // ✅ include answers if any
+                    },
+                  });
+                }}
+              >
+                <Text className="text-white font-bold">Submit</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>

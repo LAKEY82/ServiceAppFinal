@@ -9,6 +9,7 @@ import api from "../API/api"; // your axios instance
 import { Camera, Image as ImageIcon, X } from "lucide-react-native";
 import DropDownPicker from 'react-native-dropdown-picker';
 import { Picker } from '@react-native-picker/picker';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 type RootStackParamList = {
   ConcentFill: {
     id: string;
@@ -16,6 +17,8 @@ type RootStackParamList = {
     appointmentType: string;
     treatmentId?: number; // 👈 added for treatment support
     initialStatus:string;
+    treatmentAppointmentId:number;
+    consultationAppointmentId:number;
   };
   Startconsultation: { formData: any };
 };
@@ -46,9 +49,30 @@ interface ConsentForm {
 const ConcentFill = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<ConcentFillRouteProp>();
-  const { id, consultationId,initialStatus, appointmentType, treatmentId } = route.params;
+  const { id, consultationId,initialStatus,treatmentAppointmentId,consultationAppointmentId, appointmentType, treatmentId } = route.params;
 
   console.log("The Params:", route.params);
+  //Logg the Async storages
+  useEffect(() => {
+  const loadSavedIds = async () => {
+    try {
+      const savedTreatmentId = await AsyncStorage.getItem("treatmentAppointmentId");
+      const savedConsultationId = await AsyncStorage.getItem("consultationAppointmentId");
+
+      console.log("✅ Saved TreatmentAppointmentId:", savedTreatmentId);
+      console.log("✅ Saved ConsultationAppointmentId:", savedConsultationId);
+
+      console.log("✅ Params → TreatmentAppointmentId:", treatmentAppointmentId);
+      console.log("✅ Params → ConsultationAppointmentId:", consultationAppointmentId);
+      console.log("✅ Params → AppointmentType:", appointmentType);
+    } catch (error) {
+      console.log("⚠️ Error reading AsyncStorage:", error);
+    }
+  };
+
+  loadSavedIds();
+}, []);
+
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,10 +103,9 @@ const ConcentFill = () => {
   // Dropdown state for dates
   const [dateOpen, setDateOpen] = useState(false);
   const [dateItems, setDateItems] = useState<Array<{label:string;value:string}>>([]);
-
   const [formImages, setFormImages] = useState<string[]>([]);
   const [loadingForms, setLoadingForms] = useState(false);
-    const [formValue, setFormValue] = useState<string | null>("Consultation"); // default
+  const [formValue, setFormValue] = useState<string | null>("Consultation"); // default
   const [formOpen, setFormOpen] = useState(false);
   const [formItems, setFormItems] = useState([
     { label: 'Consultation', value: 'Consultation' },
@@ -141,6 +164,7 @@ const ConcentFill = () => {
     }
   }, [viewFormModalVisible]);
 
+  //get the consent form based on appointment type and initial status
 useEffect(() => {
   const fetchConsentForm = async () => {
     try {
@@ -274,105 +298,107 @@ useEffect(() => {
   };
 
   //To pick multiple images in the concent form
-  const uploadPhotos = async () => {
-    if (selectedImages.length === 0) {
-      Alert.alert("No photos selected", "Please choose at least one photo.");
-      return;
+//To pick multiple images in the concent form
+const uploadPhotos = async () => {
+  if (selectedImages.length === 0) {
+    Alert.alert("No photos selected", "Please choose at least one photo.");
+    return;
+  }
+
+  try {
+    setUploading(true);
+
+    console.log("🟡 Starting upload...");
+    console.log("Customer ID:", id);
+    console.log("Consultation ID:", consultationId);
+    console.log("Treatment ID:", treatmentId);
+    console.log("Appointment Type:", appointmentType);
+    console.log("Initial Status:", initialStatus);
+    console.log("Selected Images:", selectedImages);
+    const formData = new FormData();
+
+    // ✅ Append common fields
+    formData.append("customerId", id);
+
+    // ✅ Decide formType ("Initial" OR AppointmentType)
+    let uploadFormType = appointmentType;
+    if (initialStatus === "notfilled") {
+      uploadFormType = "Initial";
     }
 
-    try {
-      setUploading(true);
+    formData.append("formType", uploadFormType);
 
-      console.log("🟡 Starting upload...");
-      console.log("Customer ID:", id);
-      console.log("Consultation ID:", consultationId);
-      console.log("Treatment ID:", treatmentId);
-      console.log("Appointment Type:", appointmentType);
-      console.log("Selected Images:", selectedImages);
-
-      const formData = new FormData();
-
-      // ✅ Append required fields
-      formData.append("customerId", id);
-      formData.append("formType", appointmentType); // 🔥 Required field (Consultation/Treatment)
-
-      if (appointmentType === "Treatment") {
-        // 👇 Treatment mode — send consultationId as 0
-        formData.append("consultationId", "0");
-        formData.append("treatmentId", treatmentId?.toString() || "0");
-      } else if (appointmentType === "Consultation") {
-        // 👇 Consultation mode — send treatmentId as 0
-        formData.append("consultationId", consultationId?.toString() || "0");
-        formData.append("treatmentId", "0");
-      } else {
-        console.warn("⚠️ Unknown appointmentType:", appointmentType);
-        formData.append("consultationId", "0");
-        formData.append("treatmentId", "0");
-      }
-
-      // ✅ Append files (field name should be "files")
-      selectedImages.forEach((uri, index) => {
-        const filename = uri.split("/").pop() || `photo_${index}.jpg`;
-        const match = /\.(\w+)$/.exec(filename);
-        const type = match ? `image/${match[1]}` : `image/jpeg`;
-
-        console.log(`🖼️ Adding file #${index + 1}:`, {
-          uri,
-          name: filename,
-          type,
-        });
-
-        formData.append("files", {
-          uri,
-          name: filename,
-          type,
-        } as any);
-      });
-
-      // 🧾 Log full FormData content (debug)
-      console.log("🧾 FormData contents:");
-      (formData as any)._parts?.forEach((p: any) => console.log("👉", p[0], "=", p[1]));
-
-      // ✅ Upload to API
-      const response = await api.post("/ConcentForm/upload/Concentform", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
-
-      console.log("✅ Upload successful:", response.data);
-      Alert.alert("Success", "Photos uploaded successfully!");
-
-      setUploadModalVisible(false);
-      setSelectedImages([]);
-
-      // ✅ Navigate next
-      if (appointmentType === "Treatment") {
-        navigation.navigate("StartTreatment", {
-          formData: { customerId: id, consultationId: 0, treatmentId },
-        });
-      } else {
-        navigation.navigate("Startconsultation", {
-          customerId: id,
-          consultationId,
-        });
-      }
-    } catch (error: any) {
-      console.error("❌ Upload error:", error);
-      if (error.response) {
-        console.log("🔴 Server responded with:", error.response.data);
-        console.log("🔴 Status code:", error.response.status);
-        console.log("🔴 Headers:", error.response.headers);
-      } else if (error.request) {
-        console.log("⚠️ No response received:", error.request);
-      } else {
-        console.log("💥 Error creating request:", error.message);
-      }
-      Alert.alert("Error", "Failed to upload photos");
-    } finally {
-      setUploading(false);
+    // ✅ Consultation / Treatment ID rules
+    if (appointmentType === "Treatment") {
+      formData.append("consultationId", "0");
+      formData.append("treatmentId", treatmentId?.toString() || "0");
+    } else {
+      formData.append("consultationId", consultationId?.toString() || "0");
+      formData.append("treatmentId", "0");
     }
-  };
+
+    // ✅ Append images
+    selectedImages.forEach((uri, index) => {
+      const filename = uri.split("/").pop() || `photo_${index}.jpg`;
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : `image/jpeg`;
+
+      console.log(`🖼️ Adding file #${index + 1}:`, {
+        uri,
+        name: filename,
+        type,
+      });
+
+      formData.append("files", {
+        uri,
+        name: filename,
+        type,
+      } as any);
+    });
+
+    // Log FormData
+    console.log("🧾 FormData contents:");
+    (formData as any)._parts?.forEach((p: any) => console.log("👉", p[0], "=", p[1]));
+
+    // ✅ Upload
+    const response = await api.post("/ConcentForm/upload/Concentform", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+
+    console.log("✅ Upload successful:", response.data);
+    Alert.alert("Success", "Photos uploaded successfully!");
+
+    setUploadModalVisible(false);
+    setSelectedImages([]);
+
+    // ✅ Navigate next
+    if (appointmentType === "Treatment") {
+      navigation.navigate("StartTreatment", {
+        formData: { customerId: id, consultationId: 0, treatmentAppointmentId },
+      });
+    } else {
+      navigation.navigate("Startconsultation", {
+        customerId: id,
+        consultationAppointmentId,
+      });
+    }
+  } catch (error: any) {
+    console.error("❌ Upload error:", error);
+    if (error.response) {
+      console.log("🔴 Server responded with:", error.response.data);
+      console.log("🔴 Status code:", error.response.status);
+      console.log("🔴 Headers:", error.response.headers);
+    } else if (error.request) {
+      console.log("⚠️ No response received:", error.request);
+    } else {
+      console.log("💥 Error creating request:", error.message);
+    }
+    Alert.alert("Error", "Failed to upload photos");
+  } finally {
+    setUploading(false);
+  }
+};
+
   const handleDownloadPDF = async () => {
     try {
       if (!form) {

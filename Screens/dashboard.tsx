@@ -22,6 +22,8 @@ type RootStackParamList = {
     appointmentType: string;
     treatmentId: string;
     initialStatus:string;
+    TreatmentAppointmentId:number;
+    consultationAppointmentId: number;
   };
   Profile: { id: string };
   StartTreatment: { customerId: string; consultationId: number };
@@ -46,60 +48,77 @@ const Dashboard = () => {
   const route = useRoute<DashboardRouteProp>();
 
   // Load user data
-  useEffect(() => {
-    const loadUserData = async () => {
-      if (route.params) {
-        setUserData(route.params);
-      } else {
-        try {
-          const storedData = await AsyncStorage.getItem("userData");
-          if (storedData) {
-            setUserData(JSON.parse(storedData));
-          } else {
-            navigation.navigate("Login" as never);
-          }
-        } catch (error) {
-          console.error("Error loading user data:", error);
+useEffect(() => {
+  const loadUserData = async () => {
+    // ✅ Clear saved appointment IDs when returning
+    await AsyncStorage.removeItem("treatmentAppointmentId");
+    await AsyncStorage.removeItem("consultationAppointmentId");
+   console.log("Saved Treatment ID:", await AsyncStorage.getItem("treatmentAppointmentId"));
+console.log("Saved Consultation ID:", await AsyncStorage.getItem("consultationAppointmentId"));
+    if (route.params) {
+      setUserData(route.params);
+    } else {
+      try {
+        const storedData = await AsyncStorage.getItem("userData");
+        if (storedData) {
+          setUserData(JSON.parse(storedData));
+        } else {
+          navigation.navigate("Login" as never);
         }
+      } catch (error) {
+        console.error("Error loading user data:", error);
       }
-    };
-    loadUserData();
-  }, [route.params, navigation]);
+    }
+  };
+  loadUserData();
+}, [route.params, navigation]);
+
 
   // Fetch consultations + treatments independently
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!userData) return;
+useEffect(() => {
+  const fetchData = async () => {
+    if (!userData) return;
 
-      try {
-        const consultationRes = await api.get(
-          `/TreatmentAppointment/consultation/${userData.branchEmployeeId}`
-        );
-        setConsultations(consultationRes.data || []);
-         console.log("🟢 Consultation API Response:", consultationRes.data); // ✅ Added log
-      } catch (err: any) {
-        console.warn(
-          "No consultations found or error:",
-          err?.response?.data || err?.message || err
-        );
-        setConsultations([]);
-      }
+    try {
+      // ✅ CONSULTATION API
+      const consultationRes = await api.get(
+        `/TreatmentAppointment/consultation/${userData.branchEmployeeId}`
+      );
 
-      try {
-        const treatmentRes = await api.get(
-          `/TreatmentAppointment/treatment/${userData.supervisorSmid}`
-        );
-        setTreatments(treatmentRes.data || []);
-      } catch (err: any) {
-        console.error(
-          "Error fetching treatments:",
-          err?.response?.data || err?.message || err
-        );
-        setTreatments([]);
-      }
-    };
-    fetchData();
-  }, [userData]);
+      const consultationsWithId = (consultationRes.data || []).map((item: any) => ({
+        ...item,
+        consultationAppointmentId: item.id, // ✅ set new key
+      }));
+
+      setConsultations(consultationsWithId);
+      console.log("🟢 Consultations:", consultationsWithId);
+    } catch (err: any) {
+      console.warn("Consultation error:", err?.response?.data || err);
+      setConsultations([]);
+    }
+
+    try {
+      // ✅ TREATMENT API
+      const treatmentRes = await api.get(
+        `/TreatmentAppointment/treatment/${userData.supervisorSmid}`
+      );
+
+      const treatmentsWithId = (treatmentRes.data || []).map((item: any) => ({
+        ...item,
+        treatmentAppointmentId: item.id, // ✅ set new key
+      }));
+
+      setTreatments(treatmentsWithId);
+      console.log("🟢 Treatments:", treatmentsWithId);
+    } catch (err: any) {
+      console.error("Treatment error:", err?.response?.data || err);
+      setTreatments([]);
+    }
+  };
+
+  fetchData();
+}, [userData]);
+
 
   const visibleList = viewType === "consultation" ? consultations : treatments;
 
@@ -152,6 +171,22 @@ const Dashboard = () => {
         return null; // No badge for Non-VIP
     }
   };
+
+  //Save the appoinmentIds into the async storage
+  const saveAppointmentId = async (type: "treatment" | "consultation", id: number) => {
+  try {
+    if (type === "treatment") {
+      await AsyncStorage.setItem("treatmentAppointmentId", id.toString());
+      await AsyncStorage.removeItem("consultationAppointmentId"); // remove the other type
+    } else {
+      await AsyncStorage.setItem("consultationAppointmentId", id.toString());
+      await AsyncStorage.removeItem("treatmentAppointmentId"); // remove the other type
+    }
+  } catch (err) {
+    console.log("Error saving appointment ID:", err);
+  }
+};
+
   
   const getFullImageUrl = (path?: string) => {
   const BASE_URL = "https://chrimgtapp.xenosyslab.com/"; // update this
@@ -165,17 +200,25 @@ const Dashboard = () => {
   return fullUrl;
 };
   // 🟣 Handle card press
-  const handleCardPress = (item: any) => {
-  // Check for null or undefined profile picture
+  const handleCardPress = async (item: any) => {
+  // ✅ Determine type and save ID
+  if (item.treatmentAppointmentId) {
+    await saveAppointmentId("treatment", item.treatmentAppointmentId);
+  } else if (item.consultationAppointmentId) {
+    await saveAppointmentId("consultation", item.consultationAppointmentId);
+  }
+
+  // ✅ Then continue your existing logic
   const profilePic = item.profilePicture ?? item.ProfilePicture ?? null;
 
-  if (profilePic === null || profilePic === undefined) {
+  if (!profilePic) {
     setSelectedCustomer(item);
     setModalVisible(true);
   } else {
     navigateToConcentFill(item);
   }
 };
+
 
 
   const navigateToConcentFill = (item: any) => {
@@ -185,6 +228,8 @@ const Dashboard = () => {
       treatmentId: item.treatmentId ?? 24,
       appointmentType: item.appointmentType ?? "Consultation",
       initialStatus:item.initialStatus,
+      TreatmentAppointmentId:item.treatmentAppointmentId,
+      consultationAppointmentId: item.consultationAppointmentId, // ✅ pass new key
     });
   };
 

@@ -7,6 +7,8 @@ import { Camera } from 'lucide-react-native'
 import { useNavigation, RouteProp, useRoute } from '@react-navigation/native'
 import api from '../API/api'
 import { BlurView } from "expo-blur";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 /** ---------- Types ---------- **/
 interface ClientProfile {
   id?: string | number
@@ -68,6 +70,8 @@ console.log("StartTreatment screen received treatmentId:", treatmentId);
   const [client, setClient] = useState<ClientProfile | null>(null)
   const [loadingClient, setLoadingClient] = useState(true)
   const [uploadingBefore, setUploadingBefore] = useState(false)
+  const [savedTreatmentAppointmentId, setSavedTreatmentAppointmentId] = useState<number | null>(null);
+
   const pickBeforePhoto = async (index: number) => {
   const permission = await ImagePicker.requestCameraPermissionsAsync()
   if (permission.status !== 'granted') {
@@ -82,51 +86,67 @@ console.log("StartTreatment screen received treatmentId:", treatmentId);
   }
 }
 
+useEffect(() => {
+  const loadAppointmentId = async () => {
+    try {
+      const id = await AsyncStorage.getItem("treatmentAppointmentId");
+
+      console.log("✅ Loaded treatmentAppointmentId from AsyncStorage:", id);
+
+      if (id) {
+        setSavedTreatmentAppointmentId(Number(id));
+      } else {
+        console.log("⚠️ No treatmentAppointmentId saved in AsyncStorage");
+      }
+    } catch (error) {
+      console.log("❌ Error reading treatmentAppointmentId:", error);
+    }
+  };
+
+  loadAppointmentId();
+}, []);
+
+
 const handleUploadBeforePhotos = async () => {
   console.log('🚀 handleUploadBeforePhotos called');
   setUploadingBefore(true);
 
   try {
-    console.log('CustomerId:', customerId);
-    console.log('TreatmentId:', treatmentId);
-    console.log('Before Photos Array:', beforePhotos);
+    if (!savedTreatmentAppointmentId) {
+      Alert.alert("Error", "Treatment appointment ID not found.");
+      setUploadingBefore(false);
+      return;
+    }
 
     const formData = new FormData();
-    formData.append('customerId', customerId);
-    formData.append('treatmetId', String(treatmentId)); // 👈 matches backend typo
+    formData.append("customerId", customerId);
+    formData.append("treatmetId", String(savedTreatmentAppointmentId)); // ✅ USE ASYNC ID
 
     beforePhotos.forEach((uri, idx) => {
       if (uri) {
-        const fileUri = Platform.OS === 'ios' ? uri.replace('file://', '') : uri;
-        const photo = {
-          uri: fileUri,
-          type: 'image/jpeg',
+        formData.append("photos", {
+          uri,
+          type: "image/jpeg",
           name: `before_${idx}.jpg`,
-        };
-        formData.append('photos', photo as any);
+        } as any);
       }
     });
 
-    console.log('📡 Sending POST request to /Treatment/Treatmentphoto/Before/upload');
     const response = await api.post(
-      '/Treatment/Treatmentphoto/Before/upload',
+      "/Treatment/Treatmentphoto/Before/upload",
       formData,
-      { headers: { 'Content-Type': 'multipart/form-data' } }
+      { headers: { "Content-Type": "multipart/form-data" } }
     );
 
-    console.log('✅ Upload successful:', response.data);
-    Alert.alert('Success', 'Before photos uploaded successfully!');
-
-    // ✅ Navigate to Appointments page after upload success
-    navigation.navigate('Appoinments', { customerId, treatmentId });
+    Alert.alert("Success", "Before photos uploaded!");
+    navigation.navigate("Appoinments", { customerId, treatmentId: savedTreatmentAppointmentId });
   } catch (err: any) {
-    console.error('❌ Upload failed:', err.response?.data || err.message);
-    Alert.alert('Upload failed', 'Failed to upload before photos.');
+    console.log("❌ Upload failed:", err.response?.data || err.message);
   } finally {
-    console.log('🔚 handleUploadBeforePhotos finished');
     setUploadingBefore(false);
   }
 };
+
 
 // 🖼️ Safely build the correct image URL
 const baseUrl = "https://chrimgtapp.xenosyslab.com";
@@ -233,7 +253,7 @@ const handleUploadAfterPhotos = async () => {
 
     const formData = new FormData()
     formData.append('customerId', customerId) // ✅ lowercase, matches backend
-    formData.append('treatmetId', String(treatmentId)) // ✅ matches backend typo
+    formData.append("treatmetId", String(savedTreatmentAppointmentId)); // ✅ matches backend typo
 
     afterPhotos.forEach((uri, idx) => {
       if (uri) {
@@ -304,13 +324,7 @@ const handleUploadAfterPhotos = async () => {
             <Text className="text-white text-xs font-bold text-center">View Consent Form</Text>
           </TouchableOpacity>
         
-        {/* <TouchableOpacity
-                    className="bg-primary p-1 rounded-lg w-[130px] items-center justify-center"
-                    onPress={() => navigation.navigate('Appoinments', { customerId })}
-                  >
-                    <Text className="text-white text-xs font-bold text-center">View Medical Reports</Text>
-                  </TouchableOpacity> */}
-                </View>
+        </View>
       </>
     )
   }
@@ -325,19 +339,15 @@ const handleUploadAfterPhotos = async () => {
       {/* Scrollable Content */}
       <ScrollView className="flex-1 px-4 mt-4" contentContainerStyle={{ paddingBottom: 120 }}>
         {/* Treatment Plan */}
-{/* Treatment Plan */}
-{/* Treatment Plan */}
 <View className="bg-[#F6F6F6] rounded-xl p-3 mb-4">
   <ScrollView horizontal showsHorizontalScrollIndicator={true}>
     <View className="flex-col">
-      {/* Table Header */}
+
       <View className="flex-row mb-2">
         <Text className="font-bold text-sm w-40 text-center">Treatment Plan</Text>
-        <Text className="font-bold text-sm w-80 text-center">Remark</Text> {/* Wider */}
-        {/* <Text className="font-bold text-sm w-40 text-center">Action</Text> */}
+        <Text className="font-bold text-sm w-80 text-center">Remark</Text>
       </View>
 
-      {/* Table Rows */}
       {loadingTreatments ? (
         <ActivityIndicator size="small" color="#000" className="my-4" />
       ) : treatments.length > 0 ? (
@@ -353,9 +363,6 @@ const handleUploadAfterPhotos = async () => {
             <Text numberOfLines={1} ellipsizeMode="tail" className="text-xs ml-[35%] w-[20%] text-left">
               {plan.description ?? 'No remark'}
             </Text>
-            {/* <TouchableOpacity style={{ width: 40, alignItems: 'center' }}>
-              <Text className="text-primary text-xs font-bold">View Photo</Text>
-            </TouchableOpacity> */}
           </View>
         ))
       ) : (
@@ -366,9 +373,7 @@ const handleUploadAfterPhotos = async () => {
 </View>
 
 
-
         {/* Before Photos */}
-{/* Before Photos */}
 <View className="bg-[#F6F6F6] rounded-xl p-3 mb-4">
   <Text className="font-bold text-sm mb-2">Before Photos</Text>
   <View className="flex-row flex-wrap justify-between">
@@ -383,7 +388,7 @@ const handleUploadAfterPhotos = async () => {
           onLongPress={() => {
             if (uri) {
               setIsBlurred(false);
-              setTimeout(() => setIsBlurred(true), 1500); // 👈 Show clear for 1.5s
+              setTimeout(() => setIsBlurred(true), 1500); 
             }
           }}
           className="w-[30%] h-24 bg-white mb-3 rounded-md items-center justify-center border border-gray-300 overflow-hidden"
@@ -427,4 +432,4 @@ const handleUploadAfterPhotos = async () => {
   )
 }
 
-export default StartTreatment
+export default StartTreatment;
