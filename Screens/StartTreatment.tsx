@@ -38,7 +38,7 @@ type RootStackParamList = {
     StartTreatment: { 
     formData: { customerId: string; consultationId: number; treatmentId: number; answers: any; photos?: (string | null)[] } 
   }
-  Appointments: { customerId: string;  treatmentId:string, }
+  Appointments: { customerId: string;  treatmentId:string,fromPage: "StartTreatment", }
   ConsentForm: { consultationId: number; customerId: string }
   Profile: { id: string }
   TreatmentConcentform: { Name:string,customerId: string; treatmentId: number }
@@ -139,7 +139,7 @@ const handleUploadBeforePhotos = async () => {
     );
 
     Alert.alert("Success", "Before photos uploaded!");
-    navigation.navigate("Appoinments", { customerId, treatmentId: savedTreatmentAppointmentId });
+    navigation.navigate("Appoinments", { customerId, fromPage: "StartTreatment", treatmentId: savedTreatmentAppointmentId });
   } catch (err: any) {
     console.log("❌ Upload failed:", err.response?.data || err.message);
   } finally {

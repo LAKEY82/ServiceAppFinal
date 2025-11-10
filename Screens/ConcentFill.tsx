@@ -58,7 +58,8 @@ const ConcentFill = () => {
     try {
       const savedTreatmentId = await AsyncStorage.getItem("treatmentAppointmentId");
       const savedConsultationId = await AsyncStorage.getItem("consultationAppointmentId");
-
+      const roleId = await AsyncStorage.getItem("roleId");
+      console.log("The Role ID is:",roleId);
       console.log("✅ Saved TreatmentAppointmentId:", savedTreatmentId);
       console.log("✅ Saved ConsultationAppointmentId:", savedConsultationId);
 
@@ -79,7 +80,7 @@ const ConcentFill = () => {
   const [form, setForm] = useState<ConsentForm | null>(null);
   const [answers, setAnswers] = useState<{ [questionId: number]: string | string[] }>({});
   const [viewFormModalVisible, setViewFormModalVisible] = useState(false);
-
+  const [successModalVisible, setSuccessModalVisible] = useState(false);
   //The Modal and Image Upload States
   const [uploadModalVisible, setUploadModalVisible] = useState(false);
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
@@ -308,6 +309,11 @@ const uploadPhotos = async () => {
   try {
     setUploading(true);
 
+    // ✅ Get roleId from AsyncStorage
+    const roleId = await AsyncStorage.getItem("roleId");
+    const parsedRoleId = Number(roleId);
+    console.log("🔵 Role ID during upload:", parsedRoleId);
+
     console.log("🟡 Starting upload...");
     console.log("Customer ID:", id);
     console.log("Consultation ID:", consultationId);
@@ -315,12 +321,13 @@ const uploadPhotos = async () => {
     console.log("Appointment Type:", appointmentType);
     console.log("Initial Status:", initialStatus);
     console.log("Selected Images:", selectedImages);
+
     const formData = new FormData();
 
     // ✅ Append common fields
     formData.append("customerId", id);
 
-    // ✅ Decide formType ("Initial" OR AppointmentType)
+    // ✅ Form type logic
     let uploadFormType = appointmentType;
     if (initialStatus === "notfilled") {
       uploadFormType = "Initial";
@@ -328,7 +335,7 @@ const uploadPhotos = async () => {
 
     formData.append("formType", uploadFormType);
 
-    // ✅ Consultation / Treatment ID rules
+    // ✅ Consultation / Treatment Logic
     if (appointmentType === "Treatment") {
       formData.append("consultationId", "0");
       formData.append("treatmentId", treatmentId?.toString() || "0");
@@ -343,12 +350,6 @@ const uploadPhotos = async () => {
       const match = /\.(\w+)$/.exec(filename);
       const type = match ? `image/${match[1]}` : `image/jpeg`;
 
-      console.log(`🖼️ Adding file #${index + 1}:`, {
-        uri,
-        name: filename,
-        type,
-      });
-
       formData.append("files", {
         uri,
         name: filename,
@@ -356,22 +357,25 @@ const uploadPhotos = async () => {
       } as any);
     });
 
-    // Log FormData
-    console.log("🧾 FormData contents:");
-    (formData as any)._parts?.forEach((p: any) => console.log("👉", p[0], "=", p[1]));
-
-    // ✅ Upload
+    // ✅ Upload to API
     const response = await api.post("/ConcentForm/upload/Concentform", formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
 
     console.log("✅ Upload successful:", response.data);
-    Alert.alert("Success", "Photos uploaded successfully!");
 
+    // ✅ Close modal + reset
     setUploadModalVisible(false);
     setSelectedImages([]);
 
-    // ✅ Navigate next
+    // ✅ ✅ ROLE ID CONDITION (IMPORTANT PART)
+    if (parsedRoleId === 24) {
+      console.log("✅ Role ID is 24 → Showing success modal");
+      setSuccessModalVisible(true);
+      return; // ✅ STOP FURTHER NAVIGATION
+    }
+
+    // ✅ Normal flow if NOT roleId 24
     if (appointmentType === "Treatment") {
       navigation.navigate("StartTreatment", {
         formData: { customerId: id, consultationId: 0, treatmentAppointmentId },
@@ -382,22 +386,22 @@ const uploadPhotos = async () => {
         consultationAppointmentId,
       });
     }
+
   } catch (error: any) {
     console.error("❌ Upload error:", error);
+
     if (error.response) {
       console.log("🔴 Server responded with:", error.response.data);
       console.log("🔴 Status code:", error.response.status);
-      console.log("🔴 Headers:", error.response.headers);
-    } else if (error.request) {
-      console.log("⚠️ No response received:", error.request);
-    } else {
-      console.log("💥 Error creating request:", error.message);
     }
+
     Alert.alert("Error", "Failed to upload photos");
+
   } finally {
     setUploading(false);
   }
 };
+
 
   const handleDownloadPDF = async () => {
     try {
@@ -849,6 +853,37 @@ const uploadPhotos = async () => {
           Submit
         </Text>
       </TouchableOpacity>
+    </View>
+  </View>
+</Modal>
+{/* ✅ SUCCESS MODAL FOR ROLE 24 */}
+<Modal
+  transparent
+  visible={successModalVisible}
+  animationType="fade"
+  onRequestClose={() => setSuccessModalVisible(false)}
+>
+  <View className="flex-1 bg-black/50 justify-center items-center px-5">
+    <View className="bg-white p-6 rounded-2xl w-[80%] items-center">
+
+      <Text className="text-2xl font-bold text-green-600 mb-2">
+        ✅ Success!
+      </Text>
+
+      <Text className="text-center text-gray-700 mb-5">
+        Consent form submitted successfully.
+      </Text>
+
+      <TouchableOpacity
+        onPress={() => {
+          setSuccessModalVisible(false);
+          navigation.navigate("Dashboard" as never);
+        }}
+        className="bg-green-600 px-6 py-3 rounded-xl"
+      >
+        <Text className="text-white font-semibold">OK</Text>
+      </TouchableOpacity>
+
     </View>
   </View>
 </Modal>

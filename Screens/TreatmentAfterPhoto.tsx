@@ -35,7 +35,7 @@ type RootStackParamList = {
     TreatmentAfterPhoto: { 
     formData: { customerId: string; consultationId: number; treatmentId: number; answers: any; photos?: (string | null)[] } 
   }
-  Appointments: { customerId: string; photos?: (string | null)[] }
+  Appointments: { customerId: string; photos?: (string | null)[],fromPage: "TreatmentAfterPhoto", }
   MedicalReports: { customerId: string }
   ConsentForm: { consultationId: number; customerId: string }
   Profile: { id: string }
@@ -215,6 +215,7 @@ const handleUploadAfterPhotos = async () => {
     navigation.navigate('Appoinments', {
       treatmentId,
       customerId,
+      fromPage: "TreatmentAfterPhoto",
     });
 
   } catch (err: any) {

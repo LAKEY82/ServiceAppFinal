@@ -46,15 +46,14 @@ const Dashboard = () => {
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const navigation = useNavigation<DashboardScreenNavigationProp>();
   const route = useRoute<DashboardRouteProp>();
+  const [roleId, setRoleId] = useState<number | null>(null);
 
   // Load user data
 useEffect(() => {
   const loadUserData = async () => {
-    // ✅ Clear saved appointment IDs when returning
     await AsyncStorage.removeItem("treatmentAppointmentId");
     await AsyncStorage.removeItem("consultationAppointmentId");
-   console.log("Saved Treatment ID:", await AsyncStorage.getItem("treatmentAppointmentId"));
-console.log("Saved Consultation ID:", await AsyncStorage.getItem("consultationAppointmentId"));
+
     if (route.params) {
       setUserData(route.params);
     } else {
@@ -68,6 +67,13 @@ console.log("Saved Consultation ID:", await AsyncStorage.getItem("consultationAp
       } catch (error) {
         console.error("Error loading user data:", error);
       }
+    }
+
+    // ✅ Load the saved roleId
+    const storedRoleId = await AsyncStorage.getItem("roleId");
+    if (storedRoleId) {
+      setRoleId(Number(storedRoleId));
+      console.log("✅ Loaded roleId:", storedRoleId);
     }
   };
   loadUserData();
@@ -90,7 +96,16 @@ useEffect(() => {
         consultationAppointmentId: item.id, // ✅ set new key
       }));
 
-      setConsultations(consultationsWithId);
+      // ✅ If role is 29 or 30 → filter Initial Filled only
+const filteredConsultations =
+  roleId === 29 || roleId === 30
+    ? consultationsWithId.filter((item: any) => 
+        item.initialStatus === "filled" || item.initialStatus === true
+      )
+    : consultationsWithId;
+
+setConsultations(filteredConsultations);
+
       console.log("🟢 Consultations:", consultationsWithId);
     } catch (err: any) {
       console.warn("Consultation error:", err?.response?.data || err);
@@ -108,7 +123,16 @@ useEffect(() => {
         treatmentAppointmentId: item.id, // ✅ set new key
       }));
 
-      setTreatments(treatmentsWithId);
+      // ✅ If role is 29 or 30 → filter Initial Filled only
+const filteredTreatments =
+  roleId === 29 || roleId === 30
+    ? treatmentsWithId.filter((item: any) => 
+        item.initialStatus === "filled" || item.initialStatus === true
+      )
+    : treatmentsWithId;
+
+setTreatments(filteredTreatments);
+
       console.log("🟢 Treatments:", treatmentsWithId);
     } catch (err: any) {
       console.error("Treatment error:", err?.response?.data || err);
@@ -123,28 +147,22 @@ useEffect(() => {
   const visibleList = viewType === "consultation" ? consultations : treatments;
 
   // Filter by status
-  const statusFilteredAppointments = visibleList.filter((item) => {
-    if (!selected) return true;
+// 🟢 Normalize the entryStatus before comparing
+const normalizeStatus = (status?: string) =>
+  status ? status.trim().toLowerCase().replace(/\s+/g, "") : "";
 
-    if (selected === "Pending") {
-      return (
-        item.photoStatus === "Pending" || item.afterPhotoStatus === "Pending"
-      );
-    }
-    if (selected === "Process") {
-      return (
-        item.photoStatus === "Processing" ||
-        item.afterPhotoStatus === "Processing"
-      );
-    }
-    if (selected === "Taken") {
-      return (
-        item.photoStatus?.toLowerCase() === "taken" ||
-        item.afterPhotoStatus?.toLowerCase() === "taken"
-      );
-    }
-    return true;
-  });
+// 🟡 Filter list by normalized entryStatus
+const statusFilteredAppointments = visibleList.filter((item) => {
+  if (!selected) return true;
+
+  const status = normalizeStatus(item.entryStatus);
+
+  if (selected === "Active") return status === "active";
+  if (selected === "Ongoing") return status === "ongoing" || status === "ongoing";
+  if (selected === "Completed") return status === "completed";
+
+  return true;
+});
 
   // Filter by search
   const filteredAppointments = statusFilteredAppointments.filter((item) => {
@@ -154,7 +172,7 @@ useEffect(() => {
     return fullName.includes(searchQuery.toLowerCase());
   });
 
-  const buttons = ["Pending", "Process", "Taken"];
+const buttons = ["Active", "Ongoing", "Completed"];
 
   // 🟡 Define VIP badge colors
   const getBadgeStyle = (type: string | null | undefined) => {
@@ -233,6 +251,7 @@ useEffect(() => {
     });
   };
 
+  //Treatment or Consultation card values render definition
   const renderCard = ({ item }: { item: any }) => {
     const hasInitialForm =
       item.initialStatus === true ||
@@ -467,26 +486,18 @@ useEffect(() => {
                   {btn}
                 </Text>
                 <Text className="text-gray-500 text-center text-sm">
-                  {
-                    visibleList.filter((item) => {
-                      if (btn === "Pending")
-                        return (
-                          item.photoStatus === "Pending" ||
-                          item.afterPhotoStatus === "Pending"
-                        );
-                      if (btn === "Process")
-                        return (
-                          item.photoStatus === "Processing" ||
-                          item.afterPhotoStatus === "Processing"
-                        );
-                      if (btn === "Taken")
-                        return (
-                          item.photoStatus?.toLowerCase() === "taken" ||
-                          item.afterPhotoStatus?.toLowerCase() === "taken"
-                        );
-                      return false;
-                    }).length
-                  }
+{
+  visibleList.filter((item) => {
+    const status = normalizeStatus(item.entryStatus);
+
+    if (btn === "Active") return status === "active";
+    if (btn === "Ongoing") return status === "ongoing" || status === "ongoing";
+    if (btn === "Completed") return status === "completed";
+
+    return false;
+  }).length
+}
+
                 </Text>
               </View>
             </TouchableOpacity>

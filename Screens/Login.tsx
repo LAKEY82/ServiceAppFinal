@@ -50,17 +50,21 @@ const handleLogin = async () => {
     if (response.data && response.data.token) {
       console.log("Login success:", response.data);
 
-      // Destructure the response values
       const { branchEmployeeId, roleId, supervisorSmid, token, userId, userName } =
         response.data;
 
-      // Save login response to AsyncStorage
+      // ✅ Save full user object
       await AsyncStorage.setItem(
         "userData",
         JSON.stringify({ branchEmployeeId, roleId, supervisorSmid, token, userId, userName })
       );
 
-      // Navigate and pass params
+      // ✅ Save roleId separately
+      await AsyncStorage.setItem("roleId", roleId.toString());
+
+      console.log("✅ Saved roleId separately:", roleId);
+
+      // Navigate
       navigation.navigate("Dashboard", {
         branchEmployeeId,
         roleId,
@@ -81,6 +85,7 @@ const handleLogin = async () => {
     );
   }
 };
+
 
 
 
