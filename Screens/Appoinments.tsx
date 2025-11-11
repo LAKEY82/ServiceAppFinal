@@ -1,4 +1,17 @@
-import {View,Text,Image,Platform, ToastAndroid,TouchableOpacity,ScrollView,Modal,KeyboardAvoidingView,TextInput,Alert,Keyboard,} from "react-native";
+import {
+  View,
+  Text,
+  Image,
+  Platform,
+  ToastAndroid,
+  TouchableOpacity,
+  ScrollView,
+  Modal,
+  KeyboardAvoidingView,
+  TextInput,
+  Alert,
+  Keyboard,
+} from "react-native";
 import React, { useState, useEffect } from "react";
 import Navbar from "../components/Navbar";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -8,86 +21,81 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 const Appoinments = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const { customerId, treatmentId,fromPage  } = route.params;// Cart & Treatments
+  const { customerId, treatmentId, fromPage } = route.params; // Cart & Treatments
   const [cartSideVisible, setCartSideVisible] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false); // Check if the user navigates back aftter the treatment ended
   const [treatmentData, setTreatmentData] = useState<any[]>([]);
   const [packageTreatments, setPackageTreatments] = useState<any[]>([]);
   const [showAllProducts, setShowAllProducts] = useState(false);
-  const [cartItems, setCartItems] = useState<any[]>([
-    {
-      id: 1,
-      name: "Vitamin C Serum",
-      price: 4500,
-      qty: 1,
-      img: require("../assets/pp.jpg"),
-    },
-  ]);
+  const [cartItems, setCartItems] = useState<any[]>([]);
 
-//Fetch cart items 
-const fetchCartItems = async () => {
-  try {
-    if (!route.params?.customerId) return;
-    const res = await api.get(`/Treatment/Getcart/${route.params.customerId}`);
-    if (res.data.success) {
-      const serverItems = res.data.data.map((item: any) => ({
-        id: item.productCode?.trim() || item.id,
-        name: item.productName,
-        price: item.lastPurchasePrice || 0,
-        volume: item.volume,
-        treatmentId: item.treatmentId,
-        qty: 1, // You can add quantity support later if backend supports it
-      }));
-      setCartItems(serverItems);
-      console.log("🛒 Cart items loaded:", serverItems);
+  //Fetch cart items
+  const fetchCartItems = async () => {
+    try {
+      if (!route.params?.customerId) return;
+      const res = await api.get(
+        `/Treatment/Getcart/${route.params.customerId}`
+      );
+      if (res.data.success) {
+        const serverItems = res.data.data.map((item: any) => ({
+          id: item.productCode?.trim() || item.id,
+          name: item.productName,
+          price: item.lastPurchasePrice || 0,
+          volume: item.volume,
+          treatmentId: item.treatmentId,
+          qty: 1, // You can add quantity support later if backend supports it
+        }));
+        setCartItems(serverItems);
+        console.log("🛒 Cart items loaded:", serverItems);
+      }
+    } catch (err: any) {
+      console.log("❌ Error fetching cart:", err.response?.data || err.message);
     }
-  } catch (err: any) {
-    console.log("❌ Error fetching cart:", err.response?.data || err.message);
-  }
-};
-
+  };
 
   const addToCart = async (item: any) => {
-  try {
-    // 1️⃣ Update local cart UI immediately
-    setCartItems((prev) => {
-      const existing = prev.find((p) => p.id === item.id);
-      if (existing)
-        return prev.map((p) =>
-          p.id === item.id ? { ...p, qty: p.qty + 1 } : p
-        );
-      return [...prev, { ...item, qty: 1 }];
-    });
+    try {
+      // 1️⃣ Update local cart UI immediately
+      setCartItems((prev) => {
+        const existing = prev.find((p) => p.id === item.id);
+        if (existing)
+          return prev.map((p) =>
+            p.id === item.id ? { ...p, qty: p.qty + 1 } : p
+          );
+        return [...prev, { ...item, qty: 1 }];
+      });
 
-    // 2️⃣ Show cart sidebar
-    setCartSideVisible(true);
+      // 2️⃣ Show cart sidebar
+      setCartSideVisible(true);
 
-    // 3️⃣ Prepare data for backend
-    const payload = {
-      customerId: route.params.customerId, // from navigation params
-      productCode: item.id, // product code (trimmed if needed)
-      treatmentId: savedTreatmentAppointmentId, // treatment appointment ID
-    };
+      // 3️⃣ Prepare data for backend
+      const payload = {
+        customerId: route.params.customerId, // from navigation params
+        productCode: item.id, // product code (trimmed if needed)
+        treatmentId: savedTreatmentAppointmentId, // treatment appointment ID
+      };
 
-    console.log("📤 Sending Add to Cart Payload:", payload);
+      console.log("📤 Sending Add to Cart Payload:", payload);
 
-    // 4️⃣ Call the API
-    const res = await api.post("/Treatment/customer/Addtocart", payload);
+      // 4️⃣ Call the API
+      const res = await api.post("/Treatment/customer/Addtocart", payload);
 
-    console.log("✅ Product added to backend cart:", res.data);
+      console.log("✅ Product added to backend cart:", res.data);
 
-    // 5️⃣ Optional: show toast
-    if (Platform.OS === "android") {
-      ToastAndroid.show("Added to cart successfully", ToastAndroid.SHORT);
-    } else {
-      Alert.alert("Success", "Added to cart successfully");
+      // 5️⃣ Optional: show toast
+      if (Platform.OS === "android") {
+        ToastAndroid.show("Added to cart successfully", ToastAndroid.SHORT);
+      } else {
+        Alert.alert("Success", "Added to cart successfully");
+      }
+    } catch (err: any) {
+      console.log(
+        "❌ Add to Cart API Error:",
+        err.response?.data || err.message
+      );
+      Alert.alert("Error", "Failed to add to cart. Please try again.");
     }
-
-  } catch (err: any) {
-    console.log("❌ Add to Cart API Error:", err.response?.data || err.message);
-    Alert.alert("Error", "Failed to add to cart. Please try again.");
-  }
-};
+  };
 
   // Timer
   const [seconds, setSeconds] = useState(0);
@@ -163,17 +171,17 @@ const fetchCartItems = async () => {
 
   //Logic in changing the display accordingly
   useEffect(() => {
-  if (fromPage === "TreatmentAfterPhoto") {
-    setIsCompleted(true);
+    if (fromPage === "TreatmentAfterPhoto") {
+      setIsCompleted(true);
 
-    // Show a toast / alert
-   if (Platform.OS === "android") {
-  ToastAndroid.show("Message", ToastAndroid.SHORT);
-} else {
-  Alert.alert("Message");
-}
-  }
-}, [fromPage]);
+      // Show a toast / alert
+      if (Platform.OS === "android") {
+        ToastAndroid.show("Message", ToastAndroid.SHORT);
+      } else {
+        Alert.alert("Message");
+      }
+    }
+  }, [fromPage]);
 
   useEffect(() => {
     if (savedTreatmentAppointmentId !== null) {
@@ -248,65 +256,76 @@ const fetchCartItems = async () => {
   };
 
   // Fetch Treatments & Packages
-// ✅ Fetch Treatments & Package Treatments (Both Independent)
-useEffect(() => {
-  const fetchData = async () => {
-    if (!route.params?.customerId) return;
+  // ✅ Fetch Treatments & Package Treatments (Both Independent)
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!route.params?.customerId) return;
 
-    const customerId = route.params.customerId;
+      const customerId = route.params.customerId;
 
-    // ✅ Treatments
-    try {
-      const treatmentRes = await api.get(`/Treatment/${customerId}`);
-      setTreatmentData(treatmentRes.data?.data || []);
-    } catch (error: any) {
-      console.log("❌ Treatments API Error:", error.response?.data || error.message);
-      setTreatmentData([]);
-    }
-
-    // ✅ Package Treatments
-    try {
-      const packageRes = await api.get(`/Treatment/Treatmentpackages/${customerId}`);
-      const packageList = packageRes.data?.data || [];
-      const flattened: any[] = [];
-      if (Array.isArray(packageList)) {
-        packageList.forEach((pkgObj: any) => {
-          const { quotationNo, package: pkg, treatments } = pkgObj;
-          if (Array.isArray(treatments)) {
-            treatments.forEach((treatment: any, index: number) => {
-              flattened.push({
-                id: `${pkg?.id}-${treatment?.treatmentId}-${index}`,
-                quotationNo,
-                packageName: pkg?.packageName || "N/A",
-                packageType: pkg?.packageType || "N/A",
-                treatmentName: treatment?.treatment || "N/A",
-                price: treatment?.discountedPrice || treatment?.price || 0,
-                duration: treatment?.timeDuration || 0,
-              });
-            });
-          }
-        });
+      // ✅ Treatments
+      try {
+        const treatmentRes = await api.get(`/Treatment/${customerId}`);
+        setTreatmentData(treatmentRes.data?.data || []);
+      } catch (error: any) {
+        console.log(
+          "❌ Treatments API Error:",
+          error.response?.data || error.message
+        );
+        setTreatmentData([]);
       }
-      setPackageTreatments(flattened);
-    } catch (error: any) {
-      console.log("❌ Package Treatments API Error:", error.response?.data || error.message);
-      setPackageTreatments([]);
-    }
 
-    // ✅ ✅ PRODUCTS API
-    try {
-      const productRes = await api.get(`/Treatment/ProductDetails/All`);
-      console.log("✅ Products API Response:", productRes.data);
-      const productList = productRes.data?.data || [];
-      setProductData(Array.isArray(productList) ? productList : []);
-    } catch (error: any) {
-      console.log("❌ Products API Error:", error.response?.data || error.message);
-      setProductData([]);
-    }
-  };
+      // ✅ Package Treatments
+      try {
+        const packageRes = await api.get(
+          `/Treatment/Treatmentpackages/${customerId}`
+        );
+        const packageList = packageRes.data?.data || [];
+        const flattened: any[] = [];
+        if (Array.isArray(packageList)) {
+          packageList.forEach((pkgObj: any) => {
+            const { quotationNo, package: pkg, treatments } = pkgObj;
+            if (Array.isArray(treatments)) {
+              treatments.forEach((treatment: any, index: number) => {
+                flattened.push({
+                  id: `${pkg?.id}-${treatment?.treatmentId}-${index}`,
+                  quotationNo,
+                  packageName: pkg?.packageName || "N/A",
+                  packageType: pkg?.packageType || "N/A",
+                  treatmentName: treatment?.treatment || "N/A",
+                  price: treatment?.discountedPrice || treatment?.price || 0,
+                  duration: treatment?.timeDuration || 0,
+                });
+              });
+            }
+          });
+        }
+        setPackageTreatments(flattened);
+      } catch (error: any) {
+        console.log(
+          "❌ Package Treatments API Error:",
+          error.response?.data || error.message
+        );
+        setPackageTreatments([]);
+      }
 
-  fetchData();
-}, [route.params]);
+      // ✅ ✅ PRODUCTS API
+      try {
+        const productRes = await api.get(`/Treatment/ProductDetails/All`);
+        console.log("✅ Products API Response:", productRes.data);
+        const productList = productRes.data?.data || [];
+        setProductData(Array.isArray(productList) ? productList : []);
+      } catch (error: any) {
+        console.log(
+          "❌ Products API Error:",
+          error.response?.data || error.message
+        );
+        setProductData([]);
+      }
+    };
+
+    fetchData();
+  }, [route.params]);
 
   // Timer Logic
   useEffect(() => {
@@ -354,54 +373,56 @@ useEffect(() => {
 
   //Customer feedback and rating api
   // ✅ Submit Treatment Feedback API
-const submitTreatmentFeedback = async () => {
-  if (!savedTreatmentAppointmentId) {
-    Alert.alert("Error", "No treatment appointment ID found.");
-    return;
-  }
+  const submitTreatmentFeedback = async () => {
+    if (!savedTreatmentAppointmentId) {
+      Alert.alert("Error", "No treatment appointment ID found.");
+      return;
+    }
 
-  if (rating <= 0) {
-    Alert.alert("Error", "Please select a rating before submitting.");
-    return;
-  }
+    if (rating <= 0) {
+      Alert.alert("Error", "Please select a rating before submitting.");
+      return;
+    }
 
-  try {
-    const payload = {
-      treatmentAppointmentId: savedTreatmentAppointmentId, // from AsyncStorage
-      maxRate: 5, // ⭐ total stars
-      feedbackRate: rating, // ⭐ user's selected rating
-      remark: remark || "", // optional remark
-    };
+    try {
+      const payload = {
+        treatmentAppointmentId: savedTreatmentAppointmentId, // from AsyncStorage
+        maxRate: 5, // ⭐ total stars
+        feedbackRate: rating, // ⭐ user's selected rating
+        remark: remark || "", // optional remark
+      };
 
-    console.log("📤 Sending Feedback Payload:", payload);
+      console.log("📤 Sending Feedback Payload:", payload);
 
-    const response = await api.post(
-      "/Treatment/treatment-appointment/feedback",
-      payload
-    );
+      const response = await api.post(
+        "/Treatment/treatment-appointment/feedback",
+        payload
+      );
 
-    console.log("✅ Feedback Response:", response.data);
+      console.log("✅ Feedback Response:", response.data);
 
-    Alert.alert("Thank You!", "Your feedback has been submitted.");
+      Alert.alert("Thank You!", "Your feedback has been submitted.");
 
-    // Reset modal states
-    setShowRatingModal(false);
-    setRating(0);
-    setRemark("");
+      // Reset modal states
+      setShowRatingModal(false);
+      setRating(0);
+      setRemark("");
 
-    // Navigate after feedback is sent
-    navigation.navigate("TreatmentAfterPhoto", {
-      formData: {
-        customerId: customerId,
-        treatmentId: treatmentId,
-      },
-    });
-  } catch (error: any) {
-    console.error("❌ Feedback Submission Error:", error.response?.data || error.message);
-    Alert.alert("Error", "Failed to submit feedback. Please try again.");
-  }
-};
-
+      // Navigate after feedback is sent
+      navigation.navigate("TreatmentAfterPhoto", {
+        formData: {
+          customerId: customerId,
+          treatmentId: treatmentId,
+        },
+      });
+    } catch (error: any) {
+      console.error(
+        "❌ Feedback Submission Error:",
+        error.response?.data || error.message
+      );
+      Alert.alert("Error", "Failed to submit feedback. Please try again.");
+    }
+  };
 
   return (
     <View className="flex-1 bg-white">
@@ -521,36 +542,38 @@ const submitTreatmentFeedback = async () => {
               </View>
               {packageTreatments.length > 0 ? (
                 packageTreatments.map((t) => (
-                 <View
-  key={t.id}
-  className="flex-row border-b border-gray-300 p-2 items-center"
->
-  <Text className="w-28 text-xs">{t.quotationNo || "N/A"}</Text>
-  <Text className="w-40 text-xs">{t.packageName}</Text>
-  <Text className="w-32 text-xs">{t.packageType}</Text>
-  <Text className="w-40 text-xs">{t.treatmentName}</Text>
-  <Text className="w-24 text-xs">{t.duration} min</Text>
-  <Text className="w-24 text-xs">Rs. {t.price}</Text>
+                  <View
+                    key={t.id}
+                    className="flex-row border-b border-gray-300 p-2 items-center"
+                  >
+                    <Text className="w-28 text-xs">
+                      {t.quotationNo || "N/A"}
+                    </Text>
+                    <Text className="w-40 text-xs">{t.packageName}</Text>
+                    <Text className="w-32 text-xs">{t.packageType}</Text>
+                    <Text className="w-40 text-xs">{t.treatmentName}</Text>
+                    <Text className="w-24 text-xs">{t.duration} min</Text>
+                    <Text className="w-24 text-xs">Rs. {t.price}</Text>
 
-  {/* ✅ Add to Cart for every package treatment */}
-<View className="w-28">
-  <TouchableOpacity
-    className="bg-primary px-2 py-1 rounded-lg"
-    onPress={() =>
-      addToCart({
-        id: t.id,
-        name: t.treatmentName,
-        price: t.price,
-        img: require("../assets/pp.jpg"),
-      })
-    }
-  >
-    <Text className="text-white text-xs text-center">Add to Cart</Text>
-  </TouchableOpacity>
-</View>
-
-</View>
-
+                    {/* ✅ Add to Cart for every package treatment */}
+                    <View className="w-28">
+                      <TouchableOpacity
+                        className="bg-primary px-2 py-1 rounded-lg"
+                        onPress={() =>
+                          addToCart({
+                            id: t.id,
+                            name: t.treatmentName,
+                            price: t.price,
+                            img: require("../assets/pp.jpg"),
+                          })
+                        }
+                      >
+                        <Text className="text-white text-xs text-center">
+                          Add to Cart
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
                 ))
               ) : (
                 <Text className="text-xs p-2 text-gray-500">
@@ -558,126 +581,127 @@ const submitTreatmentFeedback = async () => {
                 </Text>
               )}
             </View>
-            
           </ScrollView>
-          
-                {/* ✅ View Cart Button */}
-      <View className="items-center self-end w-[30%] mt-[4%] ">
-        <TouchableOpacity
-          className="bg-primary px-2 py-1 rounded-lg shadow-md"
-          onPress={() => setCartSideVisible(true)}
-        >
-          <Text className="text-white font-semibold text-sm">
-            View Cart ({cartItems.length})
-          </Text>
-        </TouchableOpacity>
-      </View>
-        </View>
-        {/* Products Table */}
-<View className="bg-gray-50 p-3 rounded-xl mb-16 shadow-sm">
-  <Text className="font-bold text-base mb-2">🧴 Products</Text>
 
-  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-    <View>
-      {/* Table Header */}
-      <View className="flex-row bg-gray-200 p-2 rounded-md">
-        <Text className="w-32 font-semibold text-xs">Product Code</Text>
-        <Text className="w-48 font-semibold text-xs">Product Name</Text>
-        <Text className="w-24 font-semibold text-xs">Volume</Text>
-        <Text className="w-28 font-semibold text-xs">Price (Rs.)</Text>
-        <Text className="w-28 font-semibold text-xs text-center">Action</Text>
-      </View>
-
-      {/* Product Rows */}
-      {productData.length > 0 ? (
-        <>
-          {productData
-            .slice(0, showAllProducts ? productData.length : 5)
-            .map((p, index) => (
-              <View
-                key={index}
-                className="flex-row border-b border-gray-200 p-2 items-center"
-              >
-                {/* Remove trailing spaces from code */}
-                <Text className="w-32 text-xs">{p.productCode?.trim()}</Text>
-
-                {/* Product Name */}
-                <Text className="w-48 text-xs" numberOfLines={1}>
-                  {p.productName || "N/A"}
-                </Text>
-
-                {/* Volume (show N/A if blank) */}
-                <Text className="w-24 text-xs">
-                  {p.volume?.trim() !== "" ? p.volume : "N/A"}
-                </Text>
-
-                {/* Price with comma formatting */}
-                <Text className="w-28 text-xs">
-                  {p.lastPurchasePrice
-                    ? p.lastPurchasePrice.toLocaleString("en-LK", {
-                        minimumFractionDigits: 2,
-                      })
-                    : "0.00"}
-                </Text>
-
-                {/* Add to Cart Button */}
-                <View className="w-28">
-                  <TouchableOpacity
-                    className="bg-primary px-2 py-1 rounded-lg"
-                    onPress={() =>
-  addToCart({
-    id: p.productCode?.trim(),
-    name: p.productName,
-    price: p.lastPurchasePrice || 0,
-    img: require("../assets/pp.jpg"),
-  })
-}
-
-                  >
-                    <Text className="text-white text-xs text-center">
-                      Add to Cart
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
-
-          {/* See More / See Less Button */}
-          {productData.length > 10 && (
+          {/* ✅ View Cart Button */}
+          <View className="items-center self-end w-[30%] mt-[4%] ">
             <TouchableOpacity
-              className="p-2 mt-2 bg-gray-200 rounded-lg items-center"
-              onPress={() => setShowAllProducts(!showAllProducts)}
+              className="bg-primary px-2 py-1 rounded-lg shadow-md"
+              onPress={() => setCartSideVisible(true)}
             >
-              <Text className="text-xs font-semibold text-gray-700">
-                {showAllProducts ? "See Less ▲" : "See More ▼"}
+              <Text className="text-white font-semibold text-sm">
+                View Cart ({cartItems.length})
               </Text>
             </TouchableOpacity>
-          )}
-        </>
-      ) : (
-        <Text className="text-xs p-2 text-gray-500">No products available.</Text>
-      )}
-    </View>
-  </ScrollView>
-  {/* ✅ View Products Cart Button */}
-<View className="items-center self-end w-[35%] mt-[4%]">
-  <TouchableOpacity
-    className="bg-primary px-2 py-1 rounded-lg shadow-md"
-    onPress={async () => {
-      await fetchCartItems();   // ⬅️  call the function here
-      setCartSideVisible(true); // show the modal afterwards
-    }}
-  >
-    <Text className="text-white font-semibold text-sm">
-      View Cart
-    </Text>
-  </TouchableOpacity>
-</View>
+          </View>
+        </View>
+        {/* Products Table */}
+        <View className="bg-gray-50 p-3 rounded-xl mb-16 shadow-sm">
+          <Text className="font-bold text-base mb-2">🧴 Products</Text>
 
-</View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View>
+              {/* Table Header */}
+              <View className="flex-row bg-gray-200 p-2 rounded-md">
+                <Text className="w-32 font-semibold text-xs">Product Code</Text>
+                <Text className="w-48 font-semibold text-xs">Product Name</Text>
+                <Text className="w-24 font-semibold text-xs">Volume</Text>
+                <Text className="w-28 font-semibold text-xs">Price (Rs.)</Text>
+                <Text className="w-28 font-semibold text-xs text-center">
+                  Action
+                </Text>
+              </View>
 
+              {/* Product Rows */}
+              {productData.length > 0 ? (
+                <>
+                  {productData
+                    .slice(0, showAllProducts ? productData.length : 5)
+                    .map((p, index) => (
+                      <View
+                        key={index}
+                        className="flex-row border-b border-gray-200 p-2 items-center"
+                      >
+                        {/* Remove trailing spaces from code */}
+                        <Text className="w-32 text-xs">
+                          {p.productCode?.trim()}
+                        </Text>
+
+                        {/* Product Name */}
+                        <Text className="w-48 text-xs" numberOfLines={1}>
+                          {p.productName || "N/A"}
+                        </Text>
+
+                        {/* Volume (show N/A if blank) */}
+                        <Text className="w-24 text-xs">
+                          {p.volume?.trim() !== "" ? p.volume : "N/A"}
+                        </Text>
+
+                        {/* Price with comma formatting */}
+                        <Text className="w-28 text-xs">
+                          {p.lastPurchasePrice
+                            ? p.lastPurchasePrice.toLocaleString("en-LK", {
+                                minimumFractionDigits: 2,
+                              })
+                            : "0.00"}
+                        </Text>
+
+                        {/* Add to Cart Button */}
+                        <View className="w-28">
+                          <TouchableOpacity
+                            className="bg-primary px-2 py-1 rounded-lg"
+                            onPress={() =>
+                              addToCart({
+                                id: p.productCode?.trim(),
+                                name: p.productName,
+                                price: p.lastPurchasePrice || 0,
+                                img: require("../assets/pp.jpg"),
+                              })
+                            }
+                          >
+                            <Text className="text-white text-xs text-center">
+                              Add to Cart
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ))}
+
+                  {/* See More / See Less Button */}
+                  {productData.length > 10 && (
+                    <TouchableOpacity
+                      className="p-2 mt-2 bg-gray-200 rounded-lg items-center"
+                      onPress={() => setShowAllProducts(!showAllProducts)}
+                    >
+                      <Text className="text-xs font-semibold text-gray-700">
+                        {showAllProducts ? "See Less ▲" : "See More ▼"}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </>
+              ) : (
+                <Text className="text-xs p-2 text-gray-500">
+                  No products available.
+                </Text>
+              )}
+            </View>
+          </ScrollView>
+          {/* ✅ View Products Cart Button */}
+          <View className="items-center self-end w-[35%] mt-[4%]">
+            <TouchableOpacity
+              className="bg-primary px-2 py-1 rounded-lg shadow-md"
+              onPress={async () => {
+                await fetchCartItems(); // ⬅️  call the function here
+                setCartSideVisible(true); // show the modal afterwards
+              }}
+            >
+              <Text className="text-white font-semibold text-sm">
+                View Cart
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </ScrollView>
-
 
       {/* Navbar */}
       <Navbar />
@@ -767,14 +791,20 @@ const submitTreatmentFeedback = async () => {
             {/* Remark Input */}
             <View className="bg-[#F6F6F6] rounded-lg p-2 mb-4">
               <TextInput
-                className="text-black"
-                placeholder="Add your remark..."
-                placeholderTextColor="#999"
-                value={remark}
-                onChangeText={setRemark}
-                multiline
-                style={{ height: 100, textAlignVertical: "top" }}
-              />
+  className="text-black"
+  placeholder="Add your remark..."
+  placeholderTextColor="#999"
+  value={remark}
+  onChangeText={setRemark}
+  multiline
+  style={{ height: 100, textAlignVertical: "top" }}
+  blurOnSubmit={true}
+  onSubmitEditing={() => {
+    Keyboard.dismiss(); // ✅ Close the keyboard when Enter is pressed
+  }}
+  returnKeyType="done" // ✅ Changes the keyboard button label to "Done"
+/>
+
             </View>
 
             {/* Buttons */}

@@ -62,7 +62,6 @@ const ConcentFill = () => {
       console.log("The Role ID is:",roleId);
       console.log("✅ Saved TreatmentAppointmentId:", savedTreatmentId);
       console.log("✅ Saved ConsultationAppointmentId:", savedConsultationId);
-
       console.log("✅ Params → TreatmentAppointmentId:", treatmentAppointmentId);
       console.log("✅ Params → ConsultationAppointmentId:", consultationAppointmentId);
       console.log("✅ Params → AppointmentType:", appointmentType);
@@ -309,25 +308,15 @@ const uploadPhotos = async () => {
   try {
     setUploading(true);
 
-    // ✅ Get roleId from AsyncStorage
     const roleId = await AsyncStorage.getItem("roleId");
     const parsedRoleId = Number(roleId);
     console.log("🔵 Role ID during upload:", parsedRoleId);
 
-    console.log("🟡 Starting upload...");
-    console.log("Customer ID:", id);
-    console.log("Consultation ID:", consultationId);
-    console.log("Treatment ID:", treatmentId);
-    console.log("Appointment Type:", appointmentType);
-    console.log("Initial Status:", initialStatus);
-    console.log("Selected Images:", selectedImages);
-
     const formData = new FormData();
 
-    // ✅ Append common fields
     formData.append("customerId", id);
 
-    // ✅ Form type logic
+    // ✅ Determine form type
     let uploadFormType = appointmentType;
     if (initialStatus === "notfilled") {
       uploadFormType = "Initial";
@@ -335,7 +324,7 @@ const uploadPhotos = async () => {
 
     formData.append("formType", uploadFormType);
 
-    // ✅ Consultation / Treatment Logic
+    // ✅ Append consultation / treatment IDs
     if (appointmentType === "Treatment") {
       formData.append("consultationId", "0");
       formData.append("treatmentId", treatmentId?.toString() || "0");
@@ -364,43 +353,42 @@ const uploadPhotos = async () => {
 
     console.log("✅ Upload successful:", response.data);
 
-    // ✅ Close modal + reset
+    // Reset modal and selections
     setUploadModalVisible(false);
     setSelectedImages([]);
 
-    // ✅ ✅ ROLE ID CONDITION (IMPORTANT PART)
-    if (parsedRoleId === 24) {
-      console.log("✅ Role ID is 24 → Showing success modal");
+    // ✅ ROLE-BASED BEHAVIOR
+    if (parsedRoleId === 17 || parsedRoleId === 24) {
+      console.log("✅ Role ID is 17 or 24 → Showing success modal");
       setSuccessModalVisible(true);
-      return; // ✅ STOP FURTHER NAVIGATION
-    }
-
-    // ✅ Normal flow if NOT roleId 24
-    if (appointmentType === "Treatment") {
-      navigation.navigate("StartTreatment", {
-        formData: { customerId: id, consultationId: 0, treatmentAppointmentId },
-      });
     } else {
-      navigation.navigate("Startconsultation", {
-        customerId: id,
-        consultationAppointmentId,
-      });
+      console.log("✅ Role ID is other → Proceed with normal navigation");
+
+      // Navigate based on appointment type
+      if (appointmentType === "Treatment") {
+        navigation.navigate("StartTreatment", {
+          formData: { customerId: id, consultationId: 0, treatmentAppointmentId },
+        });
+      } else {
+        navigation.navigate("Startconsultation", {
+          customerId: id,
+          consultationAppointmentId,
+        });
+      }
     }
 
   } catch (error: any) {
     console.error("❌ Upload error:", error);
-
     if (error.response) {
       console.log("🔴 Server responded with:", error.response.data);
       console.log("🔴 Status code:", error.response.status);
     }
-
     Alert.alert("Error", "Failed to upload photos");
-
   } finally {
     setUploading(false);
   }
 };
+
 
 
   const handleDownloadPDF = async () => {
@@ -644,7 +632,7 @@ const uploadPhotos = async () => {
             className="flex-1 bg-primary py-4 rounded-xl ml-2"
           >
             <Text className="text-white text-center font-semibold text-lg">
-              Submit
+              Next
             </Text>
           </TouchableOpacity>
         </View>
@@ -864,14 +852,19 @@ const uploadPhotos = async () => {
   onRequestClose={() => setSuccessModalVisible(false)}
 >
   <View className="flex-1 bg-black/50 justify-center items-center px-5">
-    <View className="bg-white p-6 rounded-2xl w-[80%] items-center">
+    <View className="bg-white p-6 rounded-2xl w-[85%] items-center">
 
-      <Text className="text-2xl font-bold text-green-600 mb-2">
-        ✅ Success!
+      {/* 😊 Success Icon */}
+      <View className="w-24 h-24 rounded-full border-4 border-primary justify-center items-center mb-4">
+        <Text style={{ fontSize: 50 }}>😊</Text>
+      </View>
+
+      <Text className="text-2xl font-bold text-primary mb-2">
+        Success!
       </Text>
 
-      <Text className="text-center text-gray-700 mb-5">
-        Consent form submitted successfully.
+      <Text className="text-center text-gray-700 mb-6">
+        Uploading complete! Your file uploaded successfully.
       </Text>
 
       <TouchableOpacity
@@ -879,15 +872,14 @@ const uploadPhotos = async () => {
           setSuccessModalVisible(false);
           navigation.navigate("Dashboard" as never);
         }}
-        className="bg-green-600 px-6 py-3 rounded-xl"
+        className="bg-primary px-10 py-3 rounded-xl"
       >
-        <Text className="text-white font-semibold">OK</Text>
+        <Text className="text-white font-semibold text-lg">Continue</Text>
       </TouchableOpacity>
 
     </View>
   </View>
 </Modal>
-
 
       <Navbar />
     </View>

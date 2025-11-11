@@ -108,7 +108,7 @@ useEffect(() => {
 
 
 const handleUploadBeforePhotos = async () => {
-  console.log('🚀 handleUploadBeforePhotos called');
+  console.log("🚀 handleUploadBeforePhotos called");
   setUploadingBefore(true);
 
   try {
@@ -118,34 +118,50 @@ const handleUploadBeforePhotos = async () => {
       return;
     }
 
-    const formData = new FormData();
-    formData.append("customerId", customerId);
-    formData.append("treatmetId", String(savedTreatmentAppointmentId)); // ✅ USE ASYNC ID
+    console.log("🟢 Using savedTreatmentAppointmentId:", savedTreatmentAppointmentId);
 
+    // Build FormData
+    const formData = new FormData();
+    formData.append("customerId", String(customerId));
+    formData.append("treatmetId", String(savedTreatmentAppointmentId)); // ✅ use the AsyncStorage value
+    console.log("FormData:", formData);
     beforePhotos.forEach((uri, idx) => {
       if (uri) {
+        const fileUri = Platform.OS === "ios" ? uri.replace("file://", "") : uri;
         formData.append("photos", {
-          uri,
+          uri: fileUri,
           type: "image/jpeg",
           name: `before_${idx}.jpg`,
         } as any);
       }
     });
 
+    // Debug
+    for (let pair of formData.entries()) {
+      console.log("🧩 FormData entry:", pair[0], pair[1]);
+    }
+
+    // Upload
     const response = await api.post(
       "/Treatment/Treatmentphoto/Before/upload",
       formData,
       { headers: { "Content-Type": "multipart/form-data" } }
     );
 
+    console.log("✅ Before photo upload successful:", response.data);
     Alert.alert("Success", "Before photos uploaded!");
+
     navigation.navigate("Appoinments", { customerId, fromPage: "StartTreatment", treatmentId: savedTreatmentAppointmentId });
   } catch (err: any) {
-    console.log("❌ Upload failed:", err.response?.data || err.message);
+    console.error("❌ Upload failed:", err.response?.data || err.message);
+    Alert.alert("Upload failed", err.response?.data?.message || "Failed to upload before photos.");
   } finally {
     setUploadingBefore(false);
   }
 };
+
+
+
 
 
 // 🖼️ Safely build the correct image URL

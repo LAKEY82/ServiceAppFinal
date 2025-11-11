@@ -1,279 +1,389 @@
-import React, { useEffect, useState,useRef  } from 'react'
-import {View,Text,Image,TextInput,TouchableOpacity,ScrollView,Modal,Platform,Alert,ActivityIndicator,} from 'react-native'
-import Navbar from '../components/Navbar'
-import * as ImagePicker from 'expo-image-picker'
-import { Camera } from 'lucide-react-native'
-import { useNavigation, RouteProp, useRoute } from '@react-navigation/native'
-import api from '../API/api'
+import React, { useEffect, useState, useRef } from "react";
+import {
+  View,
+  Text,
+  Image,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  Modal,
+  Platform,
+  Alert,
+  ActivityIndicator,
+} from "react-native";
+import Navbar from "../components/Navbar";
+import * as ImagePicker from "expo-image-picker";
+import { Camera } from "lucide-react-native";
+import { useNavigation, RouteProp, useRoute } from "@react-navigation/native";
+import api from "../API/api";
 import { BlurView } from "expo-blur";
 /** ---------- Types ---------- **/
 interface ClientProfile {
-  id?: string | number
-  fullName: string
-  phone: string
-  appointmentTime?: string
-  treatmentName?: string
-  profilePhotoUrl?: string
+  id?: string | number;
+  fullName: string;
+  phone: string;
+  appointmentTime?: string;
+  treatmentName?: string;
+  profilePhotoUrl?: string;
 }
 
 interface TreatmentItem {
-  id?: string | number
-  tname?: string
-  date?: string
-  remark?: string
-  [k: string]: any
+  id?: string | number;
+  tname?: string;
+  date?: string;
+  remark?: string;
+  [k: string]: any;
 }
 
 interface RemarkItem {
-  id?: number
-  date: string
-  doctorName: string
-  remark: string
+  id?: number;
+  date: string;
+  doctorName: string;
+  remark: string;
 }
 
 type RootStackParamList = {
-    TreatmentAfterPhoto: { 
-    formData: { customerId: string; consultationId: number; treatmentId: number; answers: any; photos?: (string | null)[] } 
-  }
-  Appointments: { customerId: string; photos?: (string | null)[],fromPage: "TreatmentAfterPhoto", }
-  MedicalReports: { customerId: string }
-  ConsentForm: { consultationId: number; customerId: string }
-  Profile: { id: string }
-  TreatmentConcentform: { Name:string,customerId: string; treatmentId: number }
-}
+  TreatmentAfterPhoto: {
+    formData: {
+      customerId: string;
+      consultationId: number;
+      treatmentId: number;
+      answers: any;
+      photos?: (string | null)[];
+    };
+  };
+  Appointments: {
+    customerId: string;
+    photos?: (string | null)[];
+    fromPage: "TreatmentAfterPhoto";
+  };
+  MedicalReports: { customerId: string };
+  ConsentForm: { consultationId: number; customerId: string };
+  Profile: { id: string };
+  TreatmentConcentform: {
+    Name: string;
+    customerId: string;
+    treatmentId: number;
+  };
+};
 
-type TreatmentAfterPhotoRouteProp = RouteProp<RootStackParamList, 'TreatmentAfterPhoto'>
+type TreatmentAfterPhotoRouteProp = RouteProp<
+  RootStackParamList,
+  "TreatmentAfterPhoto"
+>;
 
 /** ---------- Component ---------- **/
 const TreatmentAfterPhoto: React.FC = () => {
-  const navigation = useNavigation<any>()
-  const route = useRoute<TreatmentAfterPhotoRouteProp>()
-const { formData } = route.params as { formData: { customerId: string; consultationId: number; treatmentId: number; answers: any } };
-const { customerId, consultationId, treatmentId, answers } = formData;
-const [showRatingModal, setShowRatingModal] = useState(false)
-const [rating, setRating] = useState(0)
-const [remark, setRemark] = useState('')
-console.log("StartTreatment screen received customerId:", customerId);
-console.log("StartTreatment screen received consultationId:", consultationId);
-console.log("StartTreatment screen received treatmentId:", treatmentId);
-  const [afterPhotos, setAfterPhotos] = useState<(string | null)[]>(Array(6).fill(null))
-  const [showTimerModal, setShowTimerModal] = useState(false)
-  const [seconds, setSeconds] = useState(0)
-  const [uploadingAfter, setUploadingAfter] = useState(false)
- const [beforePhotos, setBeforePhotos] = useState<(string | null)[]>(Array(6).fill(null))
-  const [treatments, setTreatments] = useState<TreatmentItem[]>([])
-  const [remarks, setRemarks] = useState<RemarkItem[]>([])
-  const [loadingTreatments, setLoadingTreatments] = useState(true)
-  const [loadingRemarks, setLoadingRemarks] = useState(true)
-  const [client, setClient] = useState<ClientProfile | null>(null)
-  const [loadingClient, setLoadingClient] = useState(true)
-  const [uploadingBefore, setUploadingBefore] = useState(false)
+  const navigation = useNavigation<any>();
+  const route = useRoute<TreatmentAfterPhotoRouteProp>();
+  const { formData } = route.params as {
+    formData: {
+      customerId: string;
+      consultationId: number;
+      treatmentId: number;
+      answers: any;
+    };
+  };
+  const { customerId, consultationId, treatmentId, answers } = formData;
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [rating, setRating] = useState(0);
+  const [remark, setRemark] = useState("");
+  console.log("StartTreatment screen received customerId:", customerId);
+  console.log("StartTreatment screen received consultationId:", consultationId);
+  console.log("StartTreatment screen received treatmentId:", treatmentId);
+  const [afterPhotos, setAfterPhotos] = useState<(string | null)[]>(
+    Array(6).fill(null)
+  );
+  const [showTimerModal, setShowTimerModal] = useState(false);
+  const [seconds, setSeconds] = useState(0);
+  const [uploadingAfter, setUploadingAfter] = useState(false);
+  const [beforePhotos, setBeforePhotos] = useState<(string | null)[]>(
+    Array(6).fill(null)
+  );
+  const [treatments, setTreatments] = useState<TreatmentItem[]>([]);
+  const [remarks, setRemarks] = useState<RemarkItem[]>([]);
+  const [loadingTreatments, setLoadingTreatments] = useState(true);
+  const [loadingRemarks, setLoadingRemarks] = useState(true);
+  const [client, setClient] = useState<ClientProfile | null>(null);
+  const [loadingClient, setLoadingClient] = useState(true);
+  /** ---------- Medical Reports Modal ---------- **/
+  const [showMedicalReportsModal, setShowMedicalReportsModal] = useState(false);
+  const [medicalReports, setMedicalReports] = useState<any[]>([]);
+  const [loadingReports, setLoadingReports] = useState(false);
+  const [uploadingBefore, setUploadingBefore] = useState(false);
   const pickBeforePhoto = async (index: number) => {
-  const permission = await ImagePicker.requestCameraPermissionsAsync()
-  if (permission.status !== 'granted') {
-    return Alert.alert('Permission required', 'Camera permission is required!')
-  }
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (permission.status !== "granted") {
+      return Alert.alert(
+        "Permission required",
+        "Camera permission is required!"
+      );
+    }
 
-  const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.7 })
-  if (!result.canceled && result.assets && result.assets.length > 0) {
-    const updated = [...beforePhotos]
-    updated[index] = result.assets[0].uri
-    setBeforePhotos(updated)
-  }
-}
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      quality: 0.7,
+    });
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      const updated = [...beforePhotos];
+      updated[index] = result.assets[0].uri;
+      setBeforePhotos(updated);
+    }
+  };
+
+  const fetchMedicalReports = async () => {
+    setLoadingReports(true);
+    try {
+      const res = await api.get(`/PatientHistory/PatientHistory/${customerId}`);
+      console.log("🧾 Medical Reports Response:", res.data);
+      setMedicalReports(Array.isArray(res.data) ? res.data : [res.data]);
+    } catch (err) {
+      console.error("❌ Error fetching medical reports:", err);
+      Alert.alert("Error", "Failed to load medical reports.");
+    } finally {
+      setLoadingReports(false);
+    }
+  };
+
+  const openMedicalReports = async () => {
+    await fetchMedicalReports();
+    setShowMedicalReportsModal(true);
+  };
+
   // 🖼️ Safely build the correct image URL
-const baseUrl = "https://chrimgtapp.xenosyslab.com";
-let finalUrl = null;
+  const baseUrl = "https://chrimgtapp.xenosyslab.com";
+  let finalUrl = null;
 
   /** ---------- Fetch client ---------- **/
   useEffect(() => {
     const fetchClient = async () => {
-      setLoadingClient(true)
+      setLoadingClient(true);
       try {
-        const res = await api.get(`/ClientProfile/clientprofile/${customerId}`)
-        const data = res.data
-        console.log("Client Profile Response:", res.data)
+        const res = await api.get(`/ClientProfile/clientprofile/${customerId}`);
+        const data = res.data;
+        console.log("Client Profile Response:", res.data);
         setClient({
           id: data.id,
-          fullName: `${data.salutation ?? ''} ${data.fname ?? ''} ${data.lname ?? ''}`.trim() || 'Unknown',
-          phone: data.mobileNo ?? 'N/A',
+          fullName:
+            `${data.salutation ?? ""} ${data.fname ?? ""} ${data.lname ?? ""}`.trim() ||
+            "Unknown",
+          phone: data.mobileNo ?? "N/A",
           appointmentTime: data.appointmentTime,
           treatmentName: data.treatmentName,
           profilePhotoUrl: data.profilePic,
-        })
+        });
       } catch (err) {
-        console.error('Failed to fetch client profile:', err)
-        Alert.alert('Error', 'Could not load client profile.')
+        console.error("Failed to fetch client profile:", err);
+        Alert.alert("Error", "Could not load client profile.");
       } finally {
-        setLoadingClient(false)
+        setLoadingClient(false);
       }
-    }
-    fetchClient()
-  }, [customerId])
+    };
+    fetchClient();
+  }, [customerId]);
 
-      //Join the base url with the profile photo url
+  //Join the base url with the profile photo url
   const fullImageUrl = client?.profilePhotoUrl
-  ? `${baseUrl}/${client.profilePhotoUrl
-      .replace(/\\/g, "/")            // ✅ Convert backslashes to slashes
-      .replace(/^\//, "")             // ✅ Remove leading slash
-      .trim()}`                       // ✅ Remove spaces
-  : null;
+    ? `${baseUrl}/${client.profilePhotoUrl
+        .replace(/\\/g, "/") // ✅ Convert backslashes to slashes
+        .replace(/^\//, "") // ✅ Remove leading slash
+        .trim()}` // ✅ Remove spaces
+    : null;
 
-console.log("Full Image URL:", fullImageUrl);
+  console.log("Full Image URL:", fullImageUrl);
 
   /** ---------- Fetch treatments & remarks ---------- **/
   useEffect(() => {
-  const fetchTreatments = async () => {
-    setLoadingTreatments(true)
-    try {
-      const res = await api.get(`/Treatment/${customerId}`)
-      console.log('Fetched treatments response:', res.data)
-      setTreatments(res.data ?? [])
-    } catch (err) {
-      console.error('Error fetching treatments:', err)
-    } finally {
-      setLoadingTreatments(false)
-    }
-  }
+    const fetchTreatments = async () => {
+      setLoadingTreatments(true);
+      try {
+        const res = await api.get(`/Treatment/${customerId}`);
+        console.log("Fetched treatments response:", res.data);
+        setTreatments(res.data ?? []);
+      } catch (err) {
+        console.error("Error fetching treatments:", err);
+      } finally {
+        setLoadingTreatments(false);
+      }
+    };
 
-  fetchTreatments() // ✅ Call the function here
-}, [consultationId])
-
+    fetchTreatments(); // ✅ Call the function here
+  }, [consultationId]);
 
   /** ---------- Timer logic ---------- **/
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | undefined
+    let interval: ReturnType<typeof setInterval> | undefined;
     if (showTimerModal) {
-      interval = setInterval(() => setSeconds(prev => prev + 1), 1000)
+      interval = setInterval(() => setSeconds((prev) => prev + 1), 1000);
     } else {
-      setSeconds(0)
+      setSeconds(0);
     }
     return () => {
-      if (interval) clearInterval(interval)
-    }
-  }, [showTimerModal])
+      if (interval) clearInterval(interval);
+    };
+  }, [showTimerModal]);
   //Timer time format for h:M:S
   const formatTime = (totalSeconds: number) => {
-    const hrs = Math.floor(totalSeconds / 3600)
-    const mins = Math.floor((totalSeconds % 3600) / 60)
-    const secs = totalSeconds % 60
-    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-  }
+    const hrs = Math.floor(totalSeconds / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
+    const secs = totalSeconds % 60;
+    return `${hrs.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
 
   /** ---------- Camera ---------- **/
   const pickAfterPhoto = async (index: number) => {
-    const permission = await ImagePicker.requestCameraPermissionsAsync()
-    if (permission.status !== 'granted') return Alert.alert('Permission required', 'Camera permission is required!')
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (permission.status !== "granted")
+      return Alert.alert(
+        "Permission required",
+        "Camera permission is required!"
+      );
 
-    const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.7 })
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      quality: 0.7,
+    });
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      const updated = [...afterPhotos]
-      updated[index] = result.assets[0].uri
-      setAfterPhotos(updated)
+      const updated = [...afterPhotos];
+      updated[index] = result.assets[0].uri;
+      setAfterPhotos(updated);
     }
-  }
+  };
 
   /** ---------- Upload after photos ---------- **/
-/** ---------- Upload after photos ---------- **/
-const handleUploadAfterPhotos = async () => {
-  setUploadingAfter(true);
+  /** ---------- Upload after photos ---------- **/
+  const handleUploadAfterPhotos = async () => {
+    setUploadingAfter(true);
 
-  try {
-    console.log('🚀 handleUploadAfterPhotos called');
-    console.log('CustomerId:', customerId);
-    console.log('TreatmentId:', treatmentId);
-    console.log('After Photos Array:', afterPhotos);
+    try {
+      console.log("🚀 handleUploadAfterPhotos called");
+      console.log("CustomerId:", customerId);
+      console.log("TreatmentId:", treatmentId);
+      console.log("After Photos Array:", afterPhotos);
 
-    const formData = new FormData();
-    formData.append('customerId', customerId); // ✅ backend expects lowercase
-    formData.append('treatmetId', String(treatmentId)); // ✅ matches backend typo
+      const formData = new FormData();
+      formData.append("customerId", customerId); // ✅ backend expects lowercase
+      formData.append("treatmetId", String(treatmentId)); // ✅ matches backend typo
 
-    afterPhotos.forEach((uri, idx) => {
-      if (uri) {
-        const fileUri = Platform.OS === 'ios' ? uri.replace('file://', '') : uri;
-        const fileObj = {
-          uri: fileUri,
-          type: 'image/jpeg',
-          name: `after_${idx}.jpg`,
-        };
-        console.log(`📸 Adding photo #${idx + 1}:`, fileObj);
-        formData.append('photos', fileObj as any);
-      } else {
-        console.log(`⚠️ Skipped photo #${idx + 1} because URI is invalid:`, uri);
-      }
-    });
+      afterPhotos.forEach((uri, idx) => {
+        if (uri) {
+          const fileUri =
+            Platform.OS === "ios" ? uri.replace("file://", "") : uri;
+          const fileObj = {
+            uri: fileUri,
+            type: "image/jpeg",
+            name: `after_${idx}.jpg`,
+          };
+          console.log(`📸 Adding photo #${idx + 1}:`, fileObj);
+          formData.append("photos", fileObj as any);
+        } else {
+          console.log(
+            `⚠️ Skipped photo #${idx + 1} because URI is invalid:`,
+            uri
+          );
+        }
+      });
 
-    console.log('📡 Sending POST request to /Treatment/Treatmentphoto-upload');
-    const response = await api.post('/Treatment/Treatmentphoto-upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+      console.log(
+        "📡 Sending POST request to /Treatment/Treatmentphoto-upload"
+      );
+      const response = await api.post(
+        "/Treatment/Treatmentphoto-upload",
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        }
+      );
 
-    console.log('✅ Upload successful:', response.data);
-    Alert.alert('Success', 'After photos uploaded successfully!');
+      console.log("✅ Upload successful:", response.data);
+      Alert.alert("Success", "After photos uploaded successfully!");
 
-    // ✅ Navigate back to Appoinments with all required params
-    navigation.navigate('Appoinments', {
-      treatmentId,
-      customerId,
-      fromPage: "TreatmentAfterPhoto",
-    });
-
-  } catch (err: any) {
-    console.error('❌ Upload failed:', err.response?.data || err.message);
-    Alert.alert('Upload failed', 'Failed to upload after photos.');
-  } finally {
-    setUploadingAfter(false);
-    console.log('🔚 handleUploadAfterPhotos finished');
-  }
-};
-
-
+      // ✅ Navigate back to Appoinments with all required params
+      navigation.navigate("Appoinments", {
+        treatmentId,
+        customerId,
+        fromPage: "TreatmentAfterPhoto",
+      });
+    } catch (err: any) {
+      console.error("❌ Upload failed:", err.response?.data || err.message);
+      Alert.alert("Upload failed", "Failed to upload after photos.");
+    } finally {
+      setUploadingAfter(false);
+      console.log("🔚 handleUploadAfterPhotos finished");
+    }
+  };
 
   /** ---------- Header content ---------- **/
   const renderHeaderContent = () => {
-    if (loadingClient) return <ActivityIndicator size="small" color="#000" />
-    if (!client) return <Text className="text-xs text-red-500">No client data available</Text>
+    if (loadingClient) return <ActivityIndicator size="small" color="#000" />;
+    if (!client)
+      return (
+        <Text className="text-xs text-red-500">No client data available</Text>
+      );
 
     return (
       <>
-<Image
-  source={fullImageUrl ? { uri: fullImageUrl } : require('../assets/pp.jpg')}
-  className="w-16 h-16 rounded-full"
-/>
+        <Image
+          source={
+            fullImageUrl ? { uri: fullImageUrl } : require("../assets/pp.jpg")
+          }
+          className="w-16 h-16 rounded-full"
+        />
         <View className="flex-col ml-2">
-          <Text className="text-black text-sm font-bold">{client.fullName}</Text>
+          <Text className="text-black text-sm font-bold">
+            {client.fullName}
+          </Text>
           <Text className="font-medium text-xs">{client.phone}</Text>
-          {client.appointmentTime && <Text className="font-medium text-xs">{client.appointmentTime}</Text>}
-          {client.treatmentName && <Text className="font-medium text-xs">Treatment: {client.treatmentName}</Text>}
+          {client.appointmentTime && (
+            <Text className="font-medium text-xs">
+              {client.appointmentTime}
+            </Text>
+          )}
+          {client.treatmentName && (
+            <Text className="font-medium text-xs">
+              Treatment: {client.treatmentName}
+            </Text>
+          )}
         </View>
-                <View className="flex-col gap-y-2 ml-auto">
-                    <TouchableOpacity
-                      className="bg-primary p-1 rounded-lg w-[130px] items-center justify-center"
-                      onPress={() => {
-                        navigation.navigate('Profile', { id: String(customerId) })  // ✅ Navigate to Profile
-                      }}
-                    >
-                      <Text className="text-white text-xs font-bold text-center">View Profile</Text>
-                    </TouchableOpacity>
-        
-        
+        <View className="flex-col gap-y-2 ml-auto">
           <TouchableOpacity
             className="bg-primary p-1 rounded-lg w-[130px] items-center justify-center"
-            onPress={() => navigation.navigate('TreatmentConcentform', { customerId,treatmentId,Name:client.fullName })}
+            onPress={() => {
+              navigation.navigate("Profile", { id: String(customerId) }); // ✅ Navigate to Profile
+            }}
           >
-            <Text className="text-white text-xs font-bold text-center">View Consent Form</Text>
+            <Text className="text-white text-xs font-bold text-center">
+              View Profile
+            </Text>
           </TouchableOpacity>
-        
-        <TouchableOpacity
-                    className="bg-primary p-1 rounded-lg w-[130px] items-center justify-center"
-                    onPress={() => navigation.navigate('MedicalReports', { customerId })}
-                  >
-                    <Text className="text-white text-xs font-bold text-center">View Medical Reports</Text>
-                  </TouchableOpacity>
-                </View>
+
+          <TouchableOpacity
+            className="bg-primary p-1 rounded-lg w-[130px] items-center justify-center"
+            onPress={() =>
+              navigation.navigate("TreatmentConcentform", {
+                customerId,
+                treatmentId,
+                Name: client.fullName,
+              })
+            }
+          >
+            <Text className="text-white text-xs font-bold text-center">
+              View Consent Form
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            className="bg-primary p-1 rounded-lg w-[130px] items-center justify-center"
+            onPress={openMedicalReports}
+          >
+            <Text className="text-white text-xs font-bold text-center">
+              View Medical Reports
+            </Text>
+          </TouchableOpacity>
+        </View>
       </>
-    )
-  }
+    );
+  };
 
   return (
     <View className="flex-1 bg-white">
@@ -283,104 +393,186 @@ const handleUploadAfterPhotos = async () => {
       </View>
 
       {/* Scrollable Content */}
-      <ScrollView className="flex-1 px-4 mt-4" contentContainerStyle={{ paddingBottom: 120 }}>
+      <ScrollView
+        className="flex-1 px-4 mt-4"
+        contentContainerStyle={{ paddingBottom: 120 }}
+      >
         {/* Treatment Plan */}
-{/* Treatment Plan */}
-{/* Treatment Plan */}
-<View className="bg-[#F6F6F6] rounded-xl p-3 mb-4">
-  <ScrollView horizontal showsHorizontalScrollIndicator={true}>
-    <View className="flex-col">
-      {/* Table Header */}
-      <View className="flex-row mb-2">
-        <Text className="font-bold text-sm w-40 text-center">Treatment Plan</Text>
-        <Text className="font-bold text-sm w-80 text-center">Remark</Text> {/* Wider */}
-        {/* <Text className="font-bold text-sm w-40 text-center">Action</Text> */}
-      </View>
+        {/* Treatment Plan */}
+        {/* Treatment Plan */}
+        <View className="bg-[#F6F6F6] rounded-xl p-3 mb-4">
+          <ScrollView horizontal showsHorizontalScrollIndicator={true}>
+            <View className="flex-col">
+              {/* Table Header */}
+              <View className="flex-row mb-2">
+                <Text className="font-bold text-sm w-40 text-center">
+                  Treatment Plan
+                </Text>
+                <Text className="font-bold text-sm w-80 text-center">
+                  Remark
+                </Text>{" "}
+                {/* Wider */}
+                {/* <Text className="font-bold text-sm w-40 text-center">Action</Text> */}
+              </View>
 
-      {/* Table Rows */}
-      {loadingTreatments ? (
-        <ActivityIndicator size="small" color="#000" className="my-4" />
-      ) : treatments.length > 0 ? (
-        treatments.map((plan, idx) => (
-          <View
-            key={idx}
-            className="flex-row items-center border-b border-gray-300"
-            style={{ minHeight: 50 }}
-          >
-            <Text numberOfLines={1} ellipsizeMode="tail" className="text-xs w-[20%] ml-[5%] text-left">
-              {plan.tname ?? 'N/A'}
-            </Text>
-            <Text numberOfLines={1} ellipsizeMode="tail" className="text-xs ml-[35%] w-[20%] text-left">
-              {plan.description ?? 'No remark'}
-            </Text>
-            {/* <TouchableOpacity style={{ width: 40, alignItems: 'center' }}>
+              {/* Table Rows */}
+              {loadingTreatments ? (
+                <ActivityIndicator size="small" color="#000" className="my-4" />
+              ) : treatments.length > 0 ? (
+                treatments.map((plan, idx) => (
+                  <View
+                    key={idx}
+                    className="flex-row items-center border-b border-gray-300"
+                    style={{ minHeight: 50 }}
+                  >
+                    <Text
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                      className="text-xs w-[20%] ml-[5%] text-left"
+                    >
+                      {plan.tname ?? "N/A"}
+                    </Text>
+                    <Text
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                      className="text-xs ml-[35%] w-[20%] text-left"
+                    >
+                      {plan.description ?? "No remark"}
+                    </Text>
+                    {/* <TouchableOpacity style={{ width: 40, alignItems: 'center' }}>
               <Text className="text-primary text-xs font-bold">View Photo</Text>
             </TouchableOpacity> */}
-          </View>
-        ))
-      ) : (
-        <Text className="text-xs text-gray-500 w-60 mt-4 text-center">No treatments found</Text>
-      )}
-    </View>
-  </ScrollView>
-</View>
-        {/* After Photos */}
-<View className="bg-[#F6F6F6] rounded-xl p-3 mb-4">
-  <Text className="font-bold text-sm mb-2">After Photos</Text>
-  <View className="flex-row flex-wrap justify-between">
-    {afterPhotos.map((uri, idx) => {
-      const [isBlurred, setIsBlurred] = useState(true);
-
-      return (
-        <TouchableOpacity
-        activeOpacity={1}
-          key={idx}
-          onPress={() => pickAfterPhoto(idx)}
-          onLongPress={() => {
-            if (uri) {
-              setIsBlurred(false);
-              setTimeout(() => setIsBlurred(true), 1500);
-            }
-          }}
-          className="w-[30%] h-24 bg-white mb-3 rounded-md items-center justify-center border border-gray-300 overflow-hidden"
-        >
-          {uri ? (
-            <View className="w-full h-full">
-              <Image
-                source={{ uri }}
-                className="w-full h-full rounded-md absolute"
-                resizeMode="cover"
-              />
-              {isBlurred && (
-                <BlurView
-                  intensity={40}
-                  tint="light"
-                  className="absolute top-0 left-0 right-0 bottom-0 rounded-md"
-                />
+                  </View>
+                ))
+              ) : (
+                <Text className="text-xs text-gray-500 w-60 mt-4 text-center">
+                  No treatments found
+                </Text>
               )}
             </View>
-          ) : (
-            <Camera size={20} color="#666" />
-          )}
-        </TouchableOpacity>
-      );
-    })}
-  </View>
+          </ScrollView>
+        </View>
+        {/* After Photos */}
+        <View className="bg-[#F6F6F6] rounded-xl p-3 mb-4">
+          <Text className="font-bold text-sm mb-2">After Photos</Text>
+          <View className="flex-row flex-wrap justify-between">
+            {afterPhotos.map((uri, idx) => {
+              const [isBlurred, setIsBlurred] = useState(true);
 
-  <TouchableOpacity
-    className="bg-primary px-6 py-3 rounded-full items-center mt-3"
-    onPress={handleUploadAfterPhotos}
-    disabled={uploadingAfter}
-  >
-    <Text className="text-white font-bold">
-      {uploadingAfter ? "Uploading..." : "Upload After Photos"}
-    </Text>
-  </TouchableOpacity>
-</View>
+              return (
+                <TouchableOpacity
+                  activeOpacity={1}
+                  key={idx}
+                  onPress={() => pickAfterPhoto(idx)}
+                  onLongPress={() => {
+                    if (uri) {
+                      setIsBlurred(false);
+                      setTimeout(() => setIsBlurred(true), 1500);
+                    }
+                  }}
+                  className="w-[30%] h-24 bg-white mb-3 rounded-md items-center justify-center border border-gray-300 overflow-hidden"
+                >
+                  {uri ? (
+                    <View className="w-full h-full">
+                      <Image
+                        source={{ uri }}
+                        className="w-full h-full rounded-md absolute"
+                        resizeMode="cover"
+                      />
+                      {isBlurred && (
+                        <BlurView
+                          intensity={40}
+                          tint="light"
+                          className="absolute top-0 left-0 right-0 bottom-0 rounded-md"
+                        />
+                      )}
+                    </View>
+                  ) : (
+                    <Camera size={20} color="#666" />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <TouchableOpacity
+            className="bg-primary px-6 py-3 rounded-full items-center mt-3"
+            onPress={handleUploadAfterPhotos}
+            disabled={uploadingAfter}
+          >
+            <Text className="text-white font-bold">
+              {uploadingAfter ? "Uploading..." : "Upload After Photos"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ---------- Medical Reports Modal ---------- */}
+        <Modal
+          visible={showMedicalReportsModal}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setShowMedicalReportsModal(false)}
+        >
+          <View className="flex-1 bg-black/40 justify-center items-center">
+            <View className="bg-white w-[90%] max-h-[80%] rounded-xl p-4">
+              <Text className="text-lg font-bold text-center mb-3">
+                Medical Reports
+              </Text>
+
+              {loadingReports ? (
+                <ActivityIndicator size="large" color="#000" />
+              ) : medicalReports.length > 0 ? (
+                <ScrollView className="mt-2">
+                  {medicalReports.map((report, idx) => (
+                    <View
+                      key={`${report.consultationId}-${idx}`}
+                      className="border-b border-gray-300 pb-2 mb-2"
+                    >
+                      <Text className="text-sm font-semibold text-primary mb-1">
+                        {report.productName?.trim() || "Unknown Product"}
+                      </Text>
+                      <Text className="text-xs text-gray-700">
+                        <Text className="font-semibold">Code:</Text>{" "}
+                        {report.productCode?.trim() || "N/A"}
+                      </Text>
+                      <Text className="text-xs text-gray-700">
+                        <Text className="font-semibold">Prescribed:</Text>{" "}
+                        {report.prescribeDate || "N/A"}
+                      </Text>
+                      <Text className="text-xs text-gray-700">
+                        <Text className="font-semibold">How to Use:</Text>{" "}
+                        {report.howToUse || "N/A"}
+                      </Text>
+                      <Text className="text-xs text-gray-700">
+                        <Text className="font-semibold">Duration:</Text>{" "}
+                        {report.duration || "N/A"} days
+                      </Text>
+                      <Text className="text-xs text-gray-700">
+                        <Text className="font-semibold">Status:</Text>{" "}
+                        {report.entryStatus?.trim() || "N/A"}
+                      </Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              ) : (
+                <Text className="text-sm text-gray-500 text-center mt-4">
+                  No medical reports found.
+                </Text>
+              )}
+
+              <TouchableOpacity
+                className="bg-primary py-3 rounded-full mt-4 items-center"
+                onPress={() => setShowMedicalReportsModal(false)}
+              >
+                <Text className="text-white font-bold">Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
       <Navbar />
     </View>
-  )
-}
+  );
+};
 
 export default TreatmentAfterPhoto;

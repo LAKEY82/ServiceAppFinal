@@ -1,4 +1,13 @@
-import {View,Text,TextInput,TouchableOpacity,Platform,Image,FlatList,Modal,} from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Platform,
+  Image,
+  FlatList,
+  Modal,
+} from "react-native";
 import React, { useState, useEffect } from "react";
 import Navbar from "../components/Navbar";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -21,8 +30,8 @@ type RootStackParamList = {
     consultationId: number;
     appointmentType: string;
     treatmentId: string;
-    initialStatus:string;
-    TreatmentAppointmentId:number;
+    initialStatus: string;
+    TreatmentAppointmentId: number;
     consultationAppointmentId: number;
   };
   Profile: { id: string };
@@ -39,9 +48,13 @@ const Dashboard = () => {
   const [selected, setSelected] = useState<string | null>(null);
   const [consultations, setConsultations] = useState<any[]>([]);
   const [treatments, setTreatments] = useState<any[]>([]);
-  const [userData, setUserData] = useState<RootStackParamList["Dashboard"] | null>(null);
+  const [userData, setUserData] = useState<
+    RootStackParamList["Dashboard"] | null
+  >(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [viewType, setViewType] = useState<"consultation" | "treatment">("consultation");
+  const [viewType, setViewType] = useState<"consultation" | "treatment">(
+    "consultation"
+  );
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const navigation = useNavigation<DashboardScreenNavigationProp>();
@@ -49,36 +62,35 @@ const Dashboard = () => {
   const [roleId, setRoleId] = useState<number | null>(null);
 
   // Load user data
-useEffect(() => {
-  const loadUserData = async () => {
-    await AsyncStorage.removeItem("treatmentAppointmentId");
-    await AsyncStorage.removeItem("consultationAppointmentId");
+  useEffect(() => {
+    const loadUserData = async () => {
+      await AsyncStorage.removeItem("treatmentAppointmentId");
+      await AsyncStorage.removeItem("consultationAppointmentId");
 
-    if (route.params) {
-      setUserData(route.params);
-    } else {
-      try {
-        const storedData = await AsyncStorage.getItem("userData");
-        if (storedData) {
-          setUserData(JSON.parse(storedData));
-        } else {
-          navigation.navigate("Login" as never);
+      if (route.params) {
+        setUserData(route.params);
+      } else {
+        try {
+          const storedData = await AsyncStorage.getItem("userData");
+          if (storedData) {
+            setUserData(JSON.parse(storedData));
+          } else {
+            navigation.navigate("Login" as never);
+          }
+        } catch (error) {
+          console.error("Error loading user data:", error);
         }
-      } catch (error) {
-        console.error("Error loading user data:", error);
       }
-    }
 
-    // ✅ Load the saved roleId
-    const storedRoleId = await AsyncStorage.getItem("roleId");
-    if (storedRoleId) {
-      setRoleId(Number(storedRoleId));
-      console.log("✅ Loaded roleId:", storedRoleId);
-    }
-  };
-  loadUserData();
-}, [route.params, navigation]);
-
+      // ✅ Load the saved roleId
+      const storedRoleId = await AsyncStorage.getItem("roleId");
+      if (storedRoleId) {
+        setRoleId(Number(storedRoleId));
+        console.log("✅ Loaded roleId:", storedRoleId);
+      }
+    };
+    loadUserData();
+  }, [route.params, navigation]);
 
   // Fetch consultations + treatments independently
 useEffect(() => {
@@ -93,19 +105,18 @@ useEffect(() => {
 
       const consultationsWithId = (consultationRes.data || []).map((item: any) => ({
         ...item,
-        consultationAppointmentId: item.id, // ✅ set new key
+        consultationAppointmentId: item.id,
       }));
 
       // ✅ If role is 29 or 30 → filter Initial Filled only
-const filteredConsultations =
-  roleId === 29 || roleId === 30
-    ? consultationsWithId.filter((item: any) => 
-        item.initialStatus === "filled" || item.initialStatus === true
-      )
-    : consultationsWithId;
+      const filteredConsultations =
+        roleId === 29 || roleId === 30
+          ? consultationsWithId.filter(
+              (item: any) => item.initialStatus === "filled" || item.initialStatus === true
+            )
+          : consultationsWithId;
 
-setConsultations(filteredConsultations);
-
+      setConsultations(filteredConsultations);
       console.log("🟢 Consultations:", consultationsWithId);
     } catch (err: any) {
       console.warn("Consultation error:", err?.response?.data || err);
@@ -113,26 +124,33 @@ setConsultations(filteredConsultations);
     }
 
     try {
-      // ✅ TREATMENT API
-      const treatmentRes = await api.get(
-        `/TreatmentAppointment/treatment/${userData.supervisorSmid}`
-      );
+      // ✅ Dynamically decide which Treatment API to call
+      let treatmentEndpoint = "";
+
+      if (roleId === 17 || roleId === 24) {
+        // 🟢 For role 17 or 24 → fetch all treatments
+        treatmentEndpoint = "/TreatmentAppointment/treatment/All";
+      } else {
+        // 🟡 Default behavior
+        treatmentEndpoint = `/TreatmentAppointment/treatment/${userData.supervisorSmid}`;
+      }
+
+      const treatmentRes = await api.get(treatmentEndpoint);
 
       const treatmentsWithId = (treatmentRes.data || []).map((item: any) => ({
         ...item,
-        treatmentAppointmentId: item.id, // ✅ set new key
+        treatmentAppointmentId: item.id,
       }));
 
       // ✅ If role is 29 or 30 → filter Initial Filled only
-const filteredTreatments =
-  roleId === 29 || roleId === 30
-    ? treatmentsWithId.filter((item: any) => 
-        item.initialStatus === "filled" || item.initialStatus === true
-      )
-    : treatmentsWithId;
+      const filteredTreatments =
+        roleId === 29 || roleId === 30
+          ? treatmentsWithId.filter(
+              (item: any) => item.initialStatus === "filled" || item.initialStatus === true
+            )
+          : treatmentsWithId;
 
-setTreatments(filteredTreatments);
-
+      setTreatments(filteredTreatments);
       console.log("🟢 Treatments:", treatmentsWithId);
     } catch (err: any) {
       console.error("Treatment error:", err?.response?.data || err);
@@ -141,28 +159,29 @@ setTreatments(filteredTreatments);
   };
 
   fetchData();
-}, [userData]);
+}, [userData, roleId]);
 
 
   const visibleList = viewType === "consultation" ? consultations : treatments;
 
   // Filter by status
-// 🟢 Normalize the entryStatus before comparing
-const normalizeStatus = (status?: string) =>
-  status ? status.trim().toLowerCase().replace(/\s+/g, "") : "";
+  // 🟢 Normalize the entryStatus before comparing
+  const normalizeStatus = (status?: string) =>
+    status ? status.trim().toLowerCase().replace(/\s+/g, "") : "";
 
-// 🟡 Filter list by normalized entryStatus
-const statusFilteredAppointments = visibleList.filter((item) => {
-  if (!selected) return true;
+  // 🟡 Filter list by normalized entryStatus
+  const statusFilteredAppointments = visibleList.filter((item) => {
+    if (!selected) return true;
 
-  const status = normalizeStatus(item.entryStatus);
+    const status = normalizeStatus(item.entryStatus);
 
-  if (selected === "Active") return status === "active";
-  if (selected === "Ongoing") return status === "ongoing" || status === "ongoing";
-  if (selected === "Completed") return status === "completed";
+    if (selected === "Active") return status === "active";
+    if (selected === "Ongoing")
+      return status === "ongoing" || status === "ongoing";
+    if (selected === "Completed") return status === "completed";
 
-  return true;
-});
+    return true;
+  });
 
   // Filter by search
   const filteredAppointments = statusFilteredAppointments.filter((item) => {
@@ -172,7 +191,7 @@ const statusFilteredAppointments = visibleList.filter((item) => {
     return fullName.includes(searchQuery.toLowerCase());
   });
 
-const buttons = ["Active", "Ongoing", "Completed"];
+  const buttons = ["Active", "Ongoing", "Completed"];
 
   // 🟡 Define VIP badge colors
   const getBadgeStyle = (type: string | null | undefined) => {
@@ -191,53 +210,53 @@ const buttons = ["Active", "Ongoing", "Completed"];
   };
 
   //Save the appoinmentIds into the async storage
-  const saveAppointmentId = async (type: "treatment" | "consultation", id: number) => {
-  try {
-    if (type === "treatment") {
-      await AsyncStorage.setItem("treatmentAppointmentId", id.toString());
-      await AsyncStorage.removeItem("consultationAppointmentId"); // remove the other type
-    } else {
-      await AsyncStorage.setItem("consultationAppointmentId", id.toString());
-      await AsyncStorage.removeItem("treatmentAppointmentId"); // remove the other type
+  const saveAppointmentId = async (
+    type: "treatment" | "consultation",
+    id: number
+  ) => {
+    try {
+      if (type === "treatment") {
+        await AsyncStorage.setItem("treatmentAppointmentId", id.toString());
+        await AsyncStorage.removeItem("consultationAppointmentId"); // remove the other type
+      } else {
+        await AsyncStorage.setItem("consultationAppointmentId", id.toString());
+        await AsyncStorage.removeItem("treatmentAppointmentId"); // remove the other type
+      }
+    } catch (err) {
+      console.log("Error saving appointment ID:", err);
     }
-  } catch (err) {
-    console.log("Error saving appointment ID:", err);
-  }
-};
+  };
 
-  
   const getFullImageUrl = (path?: string) => {
-  const BASE_URL = "https://chrimgtapp.xenosyslab.com/"; // update this
-  if (!path) {
-    console.log("🟠 No image path found, using default placeholder");
-    return "https://i.sstatic.net/l60Hf.png";
-  }
+    const BASE_URL = "https://chrimgtapp.xenosyslab.com/"; // update this
+    if (!path) {
+      console.log("🟠 No image path found, using default placeholder");
+      return "https://i.sstatic.net/l60Hf.png";
+    }
 
-  const fullUrl = path.startsWith("http") ? path : `${BASE_URL}${path}`;
-  console.log("🟢 Full Image URL:", fullUrl); // ✅ Added log
-  return fullUrl;
-};
+    const fullUrl = path.startsWith("http") ? path : `${BASE_URL}${path}`;
+    console.log("🟢 Full Image URL:", fullUrl); // ✅ Added log
+    return fullUrl;
+  };
   // 🟣 Handle card press
   const handleCardPress = async (item: any) => {
-  // ✅ Determine type and save ID
-  if (item.treatmentAppointmentId) {
-    await saveAppointmentId("treatment", item.treatmentAppointmentId);
-  } else if (item.consultationAppointmentId) {
-    await saveAppointmentId("consultation", item.consultationAppointmentId);
-  }
+    // ✅ Determine type and save ID
+    if (item.treatmentAppointmentId) {
+      await saveAppointmentId("treatment", item.treatmentAppointmentId);
+    } else if (item.consultationAppointmentId) {
+      await saveAppointmentId("consultation", item.consultationAppointmentId);
+    }
 
-  // ✅ Then continue your existing logic
-  const profilePic = item.profilePicture ?? item.ProfilePicture ?? null;
+    // ✅ Then continue your existing logic
+    const profilePic = item.profilePicture ?? item.ProfilePicture ?? null;
 
-  if (!profilePic) {
-    setSelectedCustomer(item);
-    setModalVisible(true);
-  } else {
-    navigateToConcentFill(item);
-  }
-};
-
-
+    if (!profilePic) {
+      setSelectedCustomer(item);
+      setModalVisible(true);
+    } else {
+      navigateToConcentFill(item);
+    }
+  };
 
   const navigateToConcentFill = (item: any) => {
     navigation.navigate("ConcentFill", {
@@ -245,8 +264,8 @@ const buttons = ["Active", "Ongoing", "Completed"];
       consultationId: item.departmentId ?? 1,
       treatmentId: item.treatmentId ?? 24,
       appointmentType: item.appointmentType ?? "Consultation",
-      initialStatus:item.initialStatus,
-      TreatmentAppointmentId:item.treatmentAppointmentId,
+      initialStatus: item.initialStatus,
+      TreatmentAppointmentId: item.treatmentAppointmentId,
       consultationAppointmentId: item.consultationAppointmentId, // ✅ pass new key
     });
   };
@@ -254,8 +273,7 @@ const buttons = ["Active", "Ongoing", "Completed"];
   //Treatment or Consultation card values render definition
   const renderCard = ({ item }: { item: any }) => {
     const hasInitialForm =
-      item.initialStatus === true ||
-      item.initialStatus === "filled";
+      item.initialStatus === true || item.initialStatus === "filled";
     const hasBeforePhoto =
       item.photoStatus?.toLowerCase() === "taken" ||
       item.beforePhotoStatus === "Taken";
@@ -283,10 +301,10 @@ const buttons = ["Active", "Ongoing", "Completed"];
         }}
       >
         <View className="items-center">
-<Image
-  source={{ uri: getFullImageUrl(item.profilePicture) }} // ✅ Fixed property name
-  className="w-16 h-16 rounded-full mb-2"
-/>
+          <Image
+            source={{ uri: getFullImageUrl(item.profilePicture) }} // ✅ Fixed property name
+            className="w-16 h-16 rounded-full mb-2"
+          />
           {badgeStyle && (
             <View
               className="absolute top-2 right-2 px-2 py-1 rounded-full"
@@ -404,9 +422,11 @@ const buttons = ["Active", "Ongoing", "Completed"];
         {/* Header */}
         <View className="flex-row justify-between items-center mb-4">
           <Text className="text-lg font-bold">
-            Hi, {userData?.userName?.length > 10 
-              ? `${userData.userName.substring(0, 10)}...` 
-              : userData?.userName} 👋
+            Hi,{" "}
+            {userData?.userName?.length > 10
+              ? `${userData.userName.substring(0, 10)}...`
+              : userData?.userName}{" "}
+            👋
           </Text>
 
           <View className="flex-row bg-[#E0F7FF] rounded-full p-1 w-[220px] h-[46px]">
@@ -463,7 +483,7 @@ const buttons = ["Active", "Ongoing", "Completed"];
         <View className="flex-row justify-between mb-4">
           {buttons.map((btn, index) => (
             <TouchableOpacity
-            activeOpacity={1}
+              activeOpacity={1}
               key={index}
               onPress={() => setSelected(selected === btn ? null : btn)}
               className={`px-4 py-4 rounded-lg w-[32%] bg-white h-20`}
@@ -486,18 +506,18 @@ const buttons = ["Active", "Ongoing", "Completed"];
                   {btn}
                 </Text>
                 <Text className="text-gray-500 text-center text-sm">
-{
-  visibleList.filter((item) => {
-    const status = normalizeStatus(item.entryStatus);
+                  {
+                    visibleList.filter((item) => {
+                      const status = normalizeStatus(item.entryStatus);
 
-    if (btn === "Active") return status === "active";
-    if (btn === "Ongoing") return status === "ongoing" || status === "ongoing";
-    if (btn === "Completed") return status === "completed";
+                      if (btn === "Active") return status === "active";
+                      if (btn === "Ongoing")
+                        return status === "ongoing" || status === "ongoing";
+                      if (btn === "Completed") return status === "completed";
 
-    return false;
-  }).length
-}
-
+                      return false;
+                    }).length
+                  }
                 </Text>
               </View>
             </TouchableOpacity>
