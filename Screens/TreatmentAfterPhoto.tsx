@@ -17,6 +17,7 @@ import { Camera } from "lucide-react-native";
 import { useNavigation, RouteProp, useRoute } from "@react-navigation/native";
 import api from "../API/api";
 import { BlurView } from "expo-blur";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 /** ---------- Types ---------- **/
 interface ClientProfile {
   id?: string | number;
@@ -111,6 +112,12 @@ const TreatmentAfterPhoto: React.FC = () => {
   const [medicalReports, setMedicalReports] = useState<any[]>([]);
   const [loadingReports, setLoadingReports] = useState(false);
   const [uploadingBefore, setUploadingBefore] = useState(false);
+  const [roleId, setRoleId] = useState<number | null>(null);
+const [loadingFetchedAfterPhotos, setLoadingFetchedAfterPhotos] = useState(false);
+const [afterBlurStates, setAfterBlurStates] = useState<boolean[]>(Array(6).fill(true));
+
+
+
   const pickBeforePhoto = async (index: number) => {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (permission.status !== "granted") {
@@ -182,6 +189,55 @@ const TreatmentAfterPhoto: React.FC = () => {
     fetchClient();
   }, [customerId]);
 
+  //Fetch the after photos takenn earlier
+  useEffect(() => {
+  const fetchRoleId = async () => {
+    try {
+      const storedRole = await AsyncStorage.getItem("roleId");
+      if (storedRole) setRoleId(Number(storedRole));
+    } catch (err) {
+      console.error("Failed to get roleId from AsyncStorage:", err);
+    }
+  };
+  fetchRoleId();
+}, []);
+
+// 2️⃣ Fetch after photos once roleId and treatmentId are available
+useEffect(() => {
+  const fetchAfterPhotos = async () => {
+    if (!treatmentId || !(roleId === 26 || roleId === 28)) return;
+
+    try {
+      setLoadingFetchedAfterPhotos(true);
+      const res = await api.get(`/ConsultationPhoto/Treatment/After/${treatmentId}`);
+
+      const sortedData = Array.isArray(res.data)
+        ? [...res.data].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        : [];
+
+      const photoUrls = sortedData.map((p: any) =>
+        p.photoLocation
+          ? `${baseUrl}/${p.photoLocation.replace(/\\/g, "/").replace(/^\//, "")}`
+          : null
+      );
+
+      const updated = [...afterPhotos];
+      photoUrls.forEach((url, idx) => {
+        if (idx < 6) updated[idx] = url;
+      });
+
+      setAfterPhotos(updated);
+    } catch (err: any) {
+      console.error("Error fetching after photos:", err.response?.data || err.message);
+    } finally {
+      setLoadingFetchedAfterPhotos(false);
+    }
+  };
+
+  fetchAfterPhotos();
+}, [roleId, treatmentId]);
+
+
   //Join the base url with the profile photo url
   const fullImageUrl = client?.profilePhotoUrl
     ? `${baseUrl}/${client.profilePhotoUrl
@@ -210,6 +266,7 @@ const TreatmentAfterPhoto: React.FC = () => {
     fetchTreatments(); // ✅ Call the function here
   }, [consultationId]);
 
+  
   /** ---------- Timer logic ---------- **/
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | undefined;
@@ -250,7 +307,6 @@ const TreatmentAfterPhoto: React.FC = () => {
     }
   };
 
-  /** ---------- Upload after photos ---------- **/
   /** ---------- Upload after photos ---------- **/
   const handleUploadAfterPhotos = async () => {
     setUploadingAfter(true);
@@ -403,108 +459,128 @@ const TreatmentAfterPhoto: React.FC = () => {
         <View className="bg-[#F6F6F6] rounded-xl p-3 mb-4">
           <ScrollView horizontal showsHorizontalScrollIndicator={true}>
             <View className="flex-col">
-              {/* Table Header */}
-              <View className="flex-row mb-2">
-                <Text className="font-bold text-sm w-40 text-center">
-                  Treatment Plan
-                </Text>
-                <Text className="font-bold text-sm w-80 text-center">
-                  Remark
-                </Text>{" "}
-                {/* Wider */}
-                {/* <Text className="font-bold text-sm w-40 text-center">Action</Text> */}
-              </View>
-
-              {/* Table Rows */}
-              {loadingTreatments ? (
-                <ActivityIndicator size="small" color="#000" className="my-4" />
-              ) : treatments.length > 0 ? (
-                treatments.map((plan, idx) => (
-                  <View
-                    key={idx}
-                    className="flex-row items-center border-b border-gray-300"
-                    style={{ minHeight: 50 }}
-                  >
-                    <Text
-                      numberOfLines={1}
-                      ellipsizeMode="tail"
-                      className="text-xs w-[20%] ml-[5%] text-left"
-                    >
-                      {plan.tname ?? "N/A"}
-                    </Text>
-                    <Text
-                      numberOfLines={1}
-                      ellipsizeMode="tail"
-                      className="text-xs ml-[35%] w-[20%] text-left"
-                    >
-                      {plan.description ?? "No remark"}
-                    </Text>
-                    {/* <TouchableOpacity style={{ width: 40, alignItems: 'center' }}>
-              <Text className="text-primary text-xs font-bold">View Photo</Text>
-            </TouchableOpacity> */}
-                  </View>
-                ))
-              ) : (
-                <Text className="text-xs text-gray-500 w-60 mt-4 text-center">
-                  No treatments found
-                </Text>
-              )}
             </View>
           </ScrollView>
         </View>
         {/* After Photos */}
-        <View className="bg-[#F6F6F6] rounded-xl p-3 mb-4">
-          <Text className="font-bold text-sm mb-2">After Photos</Text>
-          <View className="flex-row flex-wrap justify-between">
-            {afterPhotos.map((uri, idx) => {
-              const [isBlurred, setIsBlurred] = useState(true);
+{/* After Photos */}
+{/* After Photos Section */}
+<View className="bg-[#F6F6F6] rounded-xl p-3 mb-4">
+  <Text className="font-bold text-sm text-center mb-2">
+    {roleId === 26 || roleId === 28
+      ? "After Treatment Photos"
+      : "Upload Photos After Treatment"}
+  </Text>
 
-              return (
-                <TouchableOpacity
-                  activeOpacity={1}
-                  key={idx}
-                  onPress={() => pickAfterPhoto(idx)}
-                  onLongPress={() => {
-                    if (uri) {
-                      setIsBlurred(false);
-                      setTimeout(() => setIsBlurred(true), 1500);
-                    }
-                  }}
-                  className="w-[30%] h-24 bg-white mb-3 rounded-md items-center justify-center border border-gray-300 overflow-hidden"
-                >
-                  {uri ? (
-                    <View className="w-full h-full">
-                      <Image
-                        source={{ uri }}
-                        className="w-full h-full rounded-md absolute"
-                        resizeMode="cover"
-                      />
-                      {isBlurred && (
-                        <BlurView
-                          intensity={40}
-                          tint="light"
-                          className="absolute top-0 left-0 right-0 bottom-0 rounded-md"
-                        />
-                      )}
-                    </View>
-                  ) : (
-                    <Camera size={20} color="#666" />
+  {roleId === 26 || roleId === 28 ? (
+    // VIEW MODE
+    <View>
+      {loadingFetchedAfterPhotos ? (
+        <ActivityIndicator size="small" color="#000" className="my-4" />
+      ) : afterPhotos.some(Boolean) ? (
+        <View className="flex-row flex-wrap justify-between mb-4">
+          {afterPhotos.map((uri, idx) => (
+            <TouchableOpacity
+              key={idx}
+              activeOpacity={1}
+              onLongPress={() => {
+                const updated = [...afterBlurStates];
+                updated[idx] = false;
+                setAfterBlurStates(updated);
+                setTimeout(() => {
+                  const reset = [...afterBlurStates];
+                  reset[idx] = true;
+                  setAfterBlurStates(reset);
+                }, 1500);
+              }}
+              className="w-[30%] h-24 bg-white mb-3 rounded-md items-center justify-center border border-gray-300 overflow-hidden"
+            >
+              {uri ? (
+                <View className="w-full h-full">
+                  <Image
+                    source={{ uri }}
+                    className="w-full h-full rounded-md absolute"
+                    resizeMode="cover"
+                  />
+                  {afterBlurStates[idx] && (
+                    <BlurView
+                      intensity={40}
+                      tint="light"
+                      className="absolute top-0 left-0 right-0 bottom-0 rounded-md"
+                    />
                   )}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <TouchableOpacity
-            className="bg-primary px-6 py-3 rounded-full items-center mt-3"
-            onPress={handleUploadAfterPhotos}
-            disabled={uploadingAfter}
-          >
-            <Text className="text-white font-bold">
-              {uploadingAfter ? "Uploading..." : "Upload After Photos"}
-            </Text>
-          </TouchableOpacity>
+                </View>
+              ) : (
+                <Camera size={20} color="#666" />
+              )}
+            </TouchableOpacity>
+          ))}
         </View>
+      ) : (
+        <Text className="text-xs text-gray-500 text-center mt-4">
+          No after photos available.
+        </Text>
+      )}
+    </View>
+  ) : (
+    // UPLOAD MODE
+    <View>
+      <View className="flex-row flex-wrap justify-between mb-3">
+        {afterPhotos.map((uri, idx) => (
+          <TouchableOpacity
+            key={idx}
+            activeOpacity={1}
+            onPress={() => pickAfterPhoto(idx)}
+            onLongPress={() => {
+              const updated = [...afterBlurStates];
+              updated[idx] = false;
+              setAfterBlurStates(updated);
+              setTimeout(() => {
+                const reset = [...afterBlurStates];
+                reset[idx] = true;
+                setAfterBlurStates(reset);
+              }, 1500);
+            }}
+            className="w-[30%] h-24 bg-white mb-3 rounded-md items-center justify-center border border-gray-300 overflow-hidden"
+          >
+            {uri ? (
+              <View className="w-full h-full">
+                <Image
+                  source={{ uri }}
+                  className="w-full h-full rounded-md absolute"
+                  resizeMode="cover"
+                />
+                {afterBlurStates[idx] && (
+                  <BlurView
+                    intensity={40}
+                    tint="light"
+                    className="absolute top-0 left-0 right-0 bottom-0 rounded-md"
+                  />
+                )}
+              </View>
+            ) : (
+              <Camera size={20} color="#666" />
+            )}
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Upload Button */}
+      <TouchableOpacity
+        className="bg-primary px-6 py-3 rounded-full items-center mt-2"
+        onPress={handleUploadAfterPhotos}
+        disabled={uploadingAfter}
+      >
+        <Text className="text-white font-bold">
+          {uploadingAfter ? "Uploading..." : "Upload Photos"}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  )}
+</View>
+
+
+
 
         {/* ---------- Medical Reports Modal ---------- */}
         <Modal

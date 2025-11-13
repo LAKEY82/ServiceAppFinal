@@ -50,17 +50,18 @@ const handleLogin = async () => {
     if (response.data && response.data.token) {
       console.log("Login success:", response.data);
 
-      const { branchEmployeeId, roleId, supervisorSmid, token, userId, userName } =
+      const { branchEmployeeId,branchId, roleId, supervisorSmid, token, userId, userName } =
         response.data;
 
       // ✅ Save full user object
       await AsyncStorage.setItem(
         "userData",
-        JSON.stringify({ branchEmployeeId, roleId, supervisorSmid, token, userId, userName })
+        JSON.stringify({ branchEmployeeId,branchId, roleId, supervisorSmid, token, userId, userName })
       );
 
       // ✅ Save roleId separately
       await AsyncStorage.setItem("roleId", roleId.toString());
+      await AsyncStorage.setItem("branchId",branchId.toString());
 
       console.log("✅ Saved roleId separately:", roleId);
 

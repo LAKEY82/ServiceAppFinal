@@ -92,74 +92,121 @@ const Dashboard = () => {
     loadUserData();
   }, [route.params, navigation]);
 
+  //Set default treatment for roles 29 and 30
+  useEffect(() => {
+  if (roleId === 29 || roleId === 30) {
+    setViewType("treatment");
+  }
+}, [roleId]);
+
   // Fetch consultations + treatments independently
 useEffect(() => {
   const fetchData = async () => {
     if (!userData) return;
 
-    try {
-      // ✅ CONSULTATION API
-      const consultationRes = await api.get(
-        `/TreatmentAppointment/consultation/${userData.branchEmployeeId}`
-      );
-
-      const consultationsWithId = (consultationRes.data || []).map((item: any) => ({
-        ...item,
-        consultationAppointmentId: item.id,
-      }));
-
-      // ✅ If role is 29 or 30 → filter Initial Filled only
-      const filteredConsultations =
-        roleId === 29 || roleId === 30
-          ? consultationsWithId.filter(
-              (item: any) => item.initialStatus === "filled" || item.initialStatus === true
-            )
-          : consultationsWithId;
-
-      setConsultations(filteredConsultations);
-      console.log("🟢 Consultations:", consultationsWithId);
-    } catch (err: any) {
-      console.warn("Consultation error:", err?.response?.data || err);
-      setConsultations([]);
-    }
+    const numericRoleId = Number(roleId);
+    const supervisorSmidNum = Number(userData.supervisorSmid);
+    const branchEmployeeIdNum = Number(userData.branchEmployeeId);
 
     try {
-      // ✅ Dynamically decide which Treatment API to call
-      let treatmentEndpoint = "";
+      // ✅ Fetch branchId from AsyncStorage
+      const storedBranchId = await AsyncStorage.getItem("branchId");
+      const branchIdNum = storedBranchId ? Number(storedBranchId) : null;
+      console.log("🔹 Stored branchId from AsyncStorage:", branchIdNum);
 
-      if (roleId === 17 || roleId === 24) {
-        // 🟢 For role 17 or 24 → fetch all treatments
-        treatmentEndpoint = "/TreatmentAppointment/treatment/All";
-      } else {
-        // 🟡 Default behavior
-        treatmentEndpoint = `/TreatmentAppointment/treatment/${userData.supervisorSmid}`;
+      if (!branchIdNum) {
+        console.warn("🚫 No branchId found in AsyncStorage. Skipping treatment fetch.");
+        setTreatments([]);
+        return;
       }
 
-      const treatmentRes = await api.get(treatmentEndpoint);
+      // ----------------- CONSULTATION FETCH -----------------
+      try {
+        const consultationEndpoint = `/TreatmentAppointment/consultation/${branchEmployeeIdNum}`;
+        console.log("📡 Fetching Consultations From:", consultationEndpoint);
+        console.log("👤 Role ID:", numericRoleId, "| SupervisorSmid:", supervisorSmidNum, "| BranchEmployeeId:", branchEmployeeIdNum);
 
-      const treatmentsWithId = (treatmentRes.data || []).map((item: any) => ({
-        ...item,
-        treatmentAppointmentId: item.id,
-      }));
+        const consultationRes = await api.get(consultationEndpoint);
 
-      // ✅ If role is 29 or 30 → filter Initial Filled only
-      const filteredTreatments =
-        roleId === 29 || roleId === 30
-          ? treatmentsWithId.filter(
-              (item: any) => item.initialStatus === "filled" || item.initialStatus === true
-            )
-          : treatmentsWithId;
+        const consultationsWithId = (consultationRes.data || []).map((item: any) => ({
+          ...item,
+          consultationAppointmentId: item.id,
+        }));
 
-      setTreatments(filteredTreatments);
-      console.log("🟢 Treatments:", treatmentsWithId);
-    } catch (err: any) {
-      console.error("Treatment error:", err?.response?.data || err);
-      setTreatments([]);
+        const filteredConsultations =
+          numericRoleId === 29 || numericRoleId === 30
+            ? consultationsWithId.filter(
+                (item: any) =>
+                  item.initialStatus === "filled" || item.initialStatus === true
+              )
+            : consultationsWithId;
+
+        setConsultations(filteredConsultations);
+        console.log("🟢 Consultations Fetched:", filteredConsultations.length);
+      } catch (err: any) {
+        console.warn("⚠️ Consultation fetch error:", err?.response?.data || err);
+        setConsultations([]);
+      }
+
+      // ----------------- TREATMENT FETCH -----------------
+      try {
+        let treatmentEndpoint = "";
+
+        if (numericRoleId === 17 || numericRoleId === 24) {
+          treatmentEndpoint = "/TreatmentAppointment/treatment/All";
+        } else if (numericRoleId === 26) {
+          treatmentEndpoint = `/TreatmentAppointment/treatment/${branchEmployeeIdNum}`;
+        } else {
+          if (!supervisorSmidNum) {
+            console.warn("🚫 Invalid supervisorSmid. Skipping treatment fetch.");
+            setTreatments([]);
+            return;
+          }
+          treatmentEndpoint = `/TreatmentAppointment/treatment/${supervisorSmidNum}`;
+        }
+
+        console.log("📡 Fetching Treatments From:", treatmentEndpoint);
+
+        const treatmentRes = await api.get(treatmentEndpoint);
+
+        const treatmentsWithId = (treatmentRes.data || []).map((item: any) => ({
+          ...item,
+          treatmentAppointmentId: item.id,
+        }));
+
+        console.log("📊 Total treatments fetched:", treatmentsWithId.length);
+
+        // ✅ Filter treatments by stored branchId
+        const branchFilteredTreatments = treatmentsWithId.filter(
+          (treatment: any) => Number(treatment.branchId) === branchIdNum
+        );
+        console.log("📌 Treatments after branch filter:", branchFilteredTreatments.length);
+
+        // ✅ Filter for roles 29 & 30 to show only "filled" treatments
+        const filteredTreatments =
+          numericRoleId === 29 || numericRoleId === 30
+            ? branchFilteredTreatments.filter(
+                (item: any) =>
+                  item.initialStatus === "filled" || item.initialStatus === true
+              )
+            : branchFilteredTreatments;
+
+        console.log("✅ Treatments after role 29/30 filter:", filteredTreatments.length);
+
+        setTreatments(filteredTreatments);
+      } catch (err: any) {
+        console.error("❌ Treatment fetch error:", err?.response?.data || err);
+        setTreatments([]);
+      }
+    } catch (err) {
+      console.error("❌ General fetch error:", err);
     }
   };
 
   fetchData();
 }, [userData, roleId]);
+
+
 
 
   const visibleList = viewType === "consultation" ? consultations : treatments;
@@ -429,43 +476,51 @@ useEffect(() => {
             👋
           </Text>
 
-          <View className="flex-row bg-[#E0F7FF] rounded-full p-1 w-[220px] h-[46px]">
-            <TouchableOpacity
-              onPress={() => setViewType("consultation")}
-              activeOpacity={1}
-              className={`flex-1 justify-center items-center rounded-full ${
-                viewType === "consultation" ? "bg-[#0077A8]" : ""
-              }`}
-            >
-              <Text
-                style={{
-                  color: viewType === "consultation" ? "#DBF7FF" : "#007697",
-                  fontWeight: "700",
-                  fontSize: 14,
-                }}
-              >
-                Consultation
-              </Text>
-            </TouchableOpacity>
+<View className="flex-row bg-[#E0F7FF] rounded-full p-1 w-[220px] h-[46px]">
+  {/* 🟣 Consultation toggle — disabled for Role 29 & 30 */}
+  <TouchableOpacity
+    onPress={() => {
+      if (roleId !== 29 && roleId !== 30) {
+        setViewType("consultation");
+      }
+    }}
+    disabled={roleId === 29 || roleId === 30}
+    activeOpacity={roleId === 29 || roleId === 30 ? 1 : 0.7}
+    className={`flex-1 justify-center items-center rounded-full ${
+      viewType === "consultation" ? "bg-[#0077A8]" : ""
+    } ${roleId === 29 || roleId === 30 ? "opacity-50" : ""}`}
+  >
+    <Text
+      style={{
+        color: viewType === "consultation" ? "#DBF7FF" : "#007697",
+        fontWeight: "700",
+        fontSize: 14,
+      }}
+    >
+      Consultation
+    </Text>
+  </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={() => setViewType("treatment")}
-              activeOpacity={1}
-              className={`flex-1 justify-center items-center rounded-full ${
-                viewType === "treatment" ? "bg-[#0077A8]" : ""
-              }`}
-            >
-              <Text
-                style={{
-                  color: viewType === "treatment" ? "#fff" : "#007697",
-                  fontWeight: "700",
-                  fontSize: 14,
-                }}
-              >
-                Treatment
-              </Text>
-            </TouchableOpacity>
-          </View>
+  {/* 🟢 Treatment toggle — always enabled */}
+  <TouchableOpacity
+    onPress={() => setViewType("treatment")}
+    activeOpacity={0.7}
+    className={`flex-1 justify-center items-center rounded-full ${
+      viewType === "treatment" ? "bg-[#0077A8]" : ""
+    }`}
+  >
+    <Text
+      style={{
+        color: viewType === "treatment" ? "#fff" : "#007697",
+        fontWeight: "700",
+        fontSize: 14,
+      }}
+    >
+      Treatment
+    </Text>
+  </TouchableOpacity>
+</View>
+
         </View>
 
         {/* Search */}

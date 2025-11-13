@@ -628,13 +628,40 @@ const uploadPhotos = async () => {
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => setUploadModalVisible(true)}
-            className="flex-1 bg-primary py-4 rounded-xl ml-2"
-          >
-            <Text className="text-white text-center font-semibold text-lg">
-              Next
-            </Text>
-          </TouchableOpacity>
+  onPress={async () => {
+    try {
+      const roleId = await AsyncStorage.getItem("roleId");
+      const parsedRoleId = Number(roleId);
+
+      // 🟡 If RoleId is 29 or 30 → Skip upload modal
+      if (parsedRoleId === 29 || parsedRoleId === 30 || parsedRoleId === 26 || parsedRoleId === 28) {
+        console.log("🚫 Role 29/30/26/28 → Skipping photo upload.");
+
+        if (appointmentType === "Treatment") {
+          navigation.navigate("StartTreatment", {
+            formData: { customerId: id, consultationId: 0, treatmentAppointmentId },
+          });
+        } else {
+          navigation.navigate("Startconsultation", {
+            customerId: id,
+            consultationAppointmentId,
+          });
+        }
+      } else {
+        // 🟢 For other roles → open upload modal
+        setUploadModalVisible(true);
+      }
+    } catch (error) {
+      console.error("Error checking RoleId:", error);
+    }
+  }}
+  className="flex-1 bg-primary py-4 rounded-xl ml-2"
+>
+  <Text className="text-white text-center font-semibold text-lg">
+    Next
+  </Text>
+</TouchableOpacity>
+
         </View>
       </ScrollView>
 
@@ -722,7 +749,7 @@ const uploadPhotos = async () => {
         </View>
       </Modal>
 
-      {/* ------------------ View Form Images Modal (UPDATED) ------------------ */}
+
 {/* ------------------ View Form Images Modal (UPDATED) ------------------ */}
 <Modal
   visible={viewFormModalVisible}
@@ -746,7 +773,7 @@ const uploadPhotos = async () => {
 
       {/* Dropdowns */}
 <View className="mb-4">
-  <Text className="text-gray-700 mb-1 font-medium">View Form Images</Text>
+  {/* <Text className="text-gray-700 mb-1 font-medium">View Form Images</Text> */}
 
   {/* Two side-by-side dropdowns */}
   <View className="flex-row justify-between">
@@ -763,6 +790,7 @@ const uploadPhotos = async () => {
         <Picker.Item label="Form Type" value="" />
         <Picker.Item label="Consultation" value="Consultation" />
         <Picker.Item label="Treatment" value="Treatment" />
+        <Picker.Item label="Initial" value="Initial" />
       </Picker>
     </View>
 

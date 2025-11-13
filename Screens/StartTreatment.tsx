@@ -71,6 +71,16 @@ console.log("StartTreatment screen received treatmentId:", treatmentId);
   const [loadingClient, setLoadingClient] = useState(true)
   const [uploadingBefore, setUploadingBefore] = useState(false)
   const [savedTreatmentAppointmentId, setSavedTreatmentAppointmentId] = useState<number | null>(null);
+  const [roleId, setRoleId] = useState<number | null>(null);
+const [fetchedBeforePhotos, setFetchedBeforePhotos] = useState<(string | null)[]>([]);
+const [loadingFetchedBeforePhotos, setLoadingFetchedBeforePhotos] = useState(false);
+const [blurStates, setBlurStates] = useState<boolean[]>(Array(6).fill(true));
+// After Photos state
+const [fetchedAfterPhotos, setFetchedAfterPhotos] = useState<string[]>([]);
+const [loadingFetchedAfterPhotos, setLoadingFetchedAfterPhotos] = useState(false);
+
+const [beforeBlurStates, setBeforeBlurStates] = useState<boolean[]>(Array(6).fill(true));
+const [afterBlurStates, setAfterBlurStates] = useState<boolean[]>(Array(6).fill(true));
 
   const pickBeforePhoto = async (index: number) => {
   const permission = await ImagePicker.requestCameraPermissionsAsync()
@@ -160,8 +170,101 @@ const handleUploadBeforePhotos = async () => {
   }
 };
 
+/** ---------- Load roleId from AsyncStorage ---------- **/
+useEffect(() => {
+  const loadRoleId = async () => {
+    try {
+      const storedRoleId = await AsyncStorage.getItem("roleId");
+      if (storedRoleId) {
+        setRoleId(Number(storedRoleId));
+        console.log("✅ Loaded roleId:", storedRoleId);
+      } else {
+        console.log("⚠️ No roleId found in AsyncStorage");
+      }
+    } catch (error) {
+      console.log("❌ Error reading roleId:", error);
+    }
+  };
 
+  loadRoleId();
+}, []);
 
+/** ---------- Fetch Before Photos if role is 26 or 28 ---------- **/
+/** ---------- Fetch Before Photos if role is 26 or 28 ---------- **/
+useEffect(() => {
+  const fetchBeforePhotos = async () => {
+    if (!savedTreatmentAppointmentId || !(roleId === 26 || roleId === 28)) return;
+
+    try {
+      setLoadingFetchedBeforePhotos(true);
+      console.log(`📸 Fetching before photos for treatmentId: ${savedTreatmentAppointmentId}`);
+      const res = await api.get(`/ConsultationPhoto/Treatment/Before/${savedTreatmentAppointmentId}`);
+      console.log("✅ Before photos response:", res.data);
+
+      const sortedData = Array.isArray(res.data)
+        ? [...res.data].sort(
+            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() // newest first
+          )
+        : [];
+
+      const photoUrls = sortedData
+        .map((p: any) =>
+          p.photoLocation
+            ? `${baseUrl}/${p.photoLocation.replace(/\\/g, "/").replace(/^\//, "")}`
+            : null
+        )
+        .filter(Boolean);
+
+      console.log("🖼️ Sorted before photo URLs:", photoUrls);
+      setFetchedBeforePhotos(photoUrls);
+    } catch (err: any) {
+      console.error("❌ Error fetching before photos:", err.response?.data || err.message);
+    } finally {
+      setLoadingFetchedBeforePhotos(false);
+    }
+  };
+
+  fetchBeforePhotos();
+}, [roleId, savedTreatmentAppointmentId]);
+
+/** ---------- Fetch After Photos if role is 26 or 28 ---------- **/
+useEffect(() => {
+  const fetchAfterPhotos = async () => {
+    if (!savedTreatmentAppointmentId || !(roleId === 26 || roleId === 28)) return;
+
+    try {
+      setLoadingFetchedAfterPhotos(true);
+      console.log(`📸 Fetching after photos for treatmentId: ${savedTreatmentAppointmentId}`);
+
+      const res = await api.get(`/ConsultationPhoto/Treatment/After/${savedTreatmentAppointmentId}`);
+      console.log("✅ After photos response:", res.data);
+
+      const sortedData = Array.isArray(res.data)
+        ? [...res.data].sort(
+            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+          )
+        : [];
+
+      // Filter only valid string URLs (remove null safely)
+      const photoUrls: string[] = sortedData
+        .map((p: any) =>
+          p.photoLocation
+            ? `${baseUrl}/${p.photoLocation.replace(/\\/g, "/").replace(/^\//, "")}`
+            : null
+        )
+        .filter((url): url is string => typeof url === "string");
+
+      console.log("🖼️ Sorted after photo URLs:", photoUrls);
+      setFetchedAfterPhotos(photoUrls);
+    } catch (err: any) {
+      console.error("❌ Error fetching after photos:", err.response?.data || err.message);
+    } finally {
+      setLoadingFetchedAfterPhotos(false);
+    }
+  };
+
+  fetchAfterPhotos();
+}, [roleId, savedTreatmentAppointmentId]);
 
 
 // 🖼️ Safely build the correct image URL
@@ -356,7 +459,8 @@ const handleUploadAfterPhotos = async () => {
       <ScrollView className="flex-1 px-4 mt-4" contentContainerStyle={{ paddingBottom: 120 }}>
         {/* Treatment Plan */}
 <View className="bg-[#F6F6F6] rounded-xl p-3 mb-4">
-  <ScrollView horizontal showsHorizontalScrollIndicator={true}>
+  <Text className="font-bold text-sm text-center mb-2">Upload Photos Before Treatment</Text>
+  {/* <ScrollView horizontal showsHorizontalScrollIndicator={true}>
     <View className="flex-col">
 
       <View className="flex-row mb-2">
@@ -385,63 +489,153 @@ const handleUploadAfterPhotos = async () => {
         <Text className="text-xs text-gray-500 w-60 mt-4 text-center">No treatments found</Text>
       )}
     </View>
-  </ScrollView>
+  </ScrollView> */}
 </View>
 
 
         {/* Before Photos */}
 <View className="bg-[#F6F6F6] rounded-xl p-3 mb-4">
-  <Text className="font-bold text-sm mb-2">Before Photos</Text>
-  <View className="flex-row flex-wrap justify-between">
-    {beforePhotos.map((uri, idx) => {
-      const [isBlurred, setIsBlurred] = useState(true);
+  <Text className="font-bold text-sm text-center mb-2">
+    {roleId === 26 || roleId === 28
+      ? "Before Treatment Photos"
+      : "Upload Photos Before Treatment"}
+  </Text>
 
-      return (
-        <TouchableOpacity
-        activeOpacity={1}
-          key={idx}
-          onPress={() => pickBeforePhoto(idx)}
-          onLongPress={() => {
-            if (uri) {
-              setIsBlurred(false);
-              setTimeout(() => setIsBlurred(true), 1500); 
-            }
-          }}
-          className="w-[30%] h-24 bg-white mb-3 rounded-md items-center justify-center border border-gray-300 overflow-hidden"
-        >
-          {uri ? (
-            <View className="w-full h-full">
-              <Image
-                source={{ uri }}
-                className="w-full h-full rounded-md absolute"
-                resizeMode="cover"
-              />
-              {isBlurred && (
-                <BlurView
-                  intensity={40}
-                  tint="light"
-                  className="absolute top-0 left-0 right-0 bottom-0 rounded-md"
+  {roleId === 26 || roleId === 28 ? (
+    // VIEW MODE
+    <View>
+      {loadingFetchedBeforePhotos ? (
+        <ActivityIndicator size="small" color="#000" className="my-4" />
+      ) : fetchedBeforePhotos.length > 0 ? (
+        <View className="flex-row flex-wrap justify-between mb-4">
+          {fetchedBeforePhotos.map((uri, idx) => (
+            <TouchableOpacity
+              key={idx}
+              activeOpacity={1}
+              onLongPress={() => {
+                const updated = [...beforeBlurStates];
+                updated[idx] = false;
+                setBeforeBlurStates(updated);
+                setTimeout(() => {
+                  const reset = [...beforeBlurStates];
+                  reset[idx] = true;
+                  setBeforeBlurStates(reset);
+                }, 1500);
+              }}
+              className="w-[30%] h-24 bg-white mb-3 rounded-md items-center justify-center border border-gray-300 overflow-hidden"
+            >
+              <View className="w-full h-full">
+                <Image
+                  source={{ uri: uri ?? undefined }}
+                  className="w-full h-full rounded-md absolute"
+                  resizeMode="cover"
                 />
-              )}
-            </View>
-          ) : (
-            <Camera size={20} color="#666" />
-          )}
-        </TouchableOpacity>
-      );
-    })}
-  </View>
+                {beforeBlurStates[idx] && (
+                  <BlurView
+                    intensity={40}
+                    tint="light"
+                    className="absolute top-0 left-0 right-0 bottom-0 rounded-md"
+                  />
+                )}
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+      ) : (
+        <Text className="text-xs text-gray-500 text-center mt-4">
+          No before photos available.
+        </Text>
+      )}
 
-  <TouchableOpacity
-    className="bg-primary px-6 py-3 rounded-full items-center mt-3"
-    onPress={handleUploadBeforePhotos}
-    disabled={uploadingBefore}
-  >
-    <Text className="text-white font-bold">
-      {uploadingBefore ? "Uploading..." : "Upload Before Photos"}
-    </Text>
-  </TouchableOpacity>
+      {/* ✅ Next Button always visible in view mode */}
+      <TouchableOpacity
+        className="bg-primary px-6 py-3 rounded-full items-center mt-2"
+        onPress={() =>
+          navigation.navigate("TreatmentAfterPhoto", {
+            formData: {
+                      customerId: customerId, // ✅ same one from current screen
+                      treatmentId: treatmentId, // ✅ include answers if any
+                    },
+                  })
+        }
+      >
+        <Text className="text-white font-bold">Next</Text>
+      </TouchableOpacity>
+    </View>
+  ) : (
+    // UPLOAD MODE
+    <View>
+      <View className="flex-row flex-wrap justify-between mb-3">
+        {beforePhotos.map((uri, idx) => (
+          <TouchableOpacity
+            key={idx}
+            activeOpacity={1}
+            onPress={() => pickBeforePhoto(idx)}
+            onLongPress={() => {
+              const updated = [...beforeBlurStates];
+              updated[idx] = false;
+              setBeforeBlurStates(updated);
+              setTimeout(() => {
+                const reset = [...beforeBlurStates];
+                reset[idx] = true;
+                setBeforeBlurStates(reset);
+              }, 1500);
+            }}
+            className="w-[30%] h-24 bg-white mb-3 rounded-md items-center justify-center border border-gray-300 overflow-hidden"
+          >
+            {uri ? (
+              <View className="w-full h-full">
+                <Image
+                  source={{ uri }}
+                  className="w-full h-full rounded-md absolute"
+                  resizeMode="cover"
+                />
+                {beforeBlurStates[idx] && (
+                  <BlurView
+                    intensity={40}
+                    tint="light"
+                    className="absolute top-0 left-0 right-0 bottom-0 rounded-md"
+                  />
+                )}
+              </View>
+            ) : (
+              <Camera size={20} color="#666" />
+            )}
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Upload Button */}
+      <TouchableOpacity
+        className="bg-primary px-6 py-3 rounded-full items-center mt-2"
+        onPress={handleUploadBeforePhotos}
+        disabled={uploadingBefore}
+      >
+        <Text className="text-white font-bold">
+          {uploadingBefore ? "Uploading..." : "Upload Photos"}
+        </Text>
+      </TouchableOpacity>
+
+      {/* ✅ Next Button also in upload mode */}
+      <TouchableOpacity
+        className="bg-secondary px-6 py-3 rounded-full items-center mt-2"
+        onPress={() =>
+          navigation.navigate("Appoinments", {
+            customerId,
+            fromPage: "StartTreatment",
+            treatmentId: savedTreatmentAppointmentId,
+          })
+        }
+      >
+        <Text className="text-white font-bold">Next</Text>
+      </TouchableOpacity>
+    </View>
+  )}
 </View>
+
+
+
+
       </ScrollView>
       <Navbar />
     </View>
