@@ -706,64 +706,69 @@ const Appoinments = () => {
       {/* Navbar */}
       <Navbar />
 
-      {/* Cart Modal */}
-      <Modal visible={cartSideVisible} animationType="slide" transparent>
-        <View className="flex-1 mt-[15%] justify-end items-end bg-black/50">
-          <View className="bg-white rounded-l-2xl p-4 w-[80%] h-full">
-            <Text className="text-lg font-bold mb-4">Cart</Text>
-            <ScrollView>
-              {cartItems.map((item) => (
-                <View
-                  key={item.id}
-                  className="flex-row items-center border-b py-2"
-                >
-                  <Image source={item.img} className="w-12 h-12 rounded mr-2" />
-                  <View className="flex-1">
-                    <Text className="font-semibold text-sm">{item.name}</Text>
-                    <Text className="text-xs text-gray-600">
-                      Rs. {item.price}
-                    </Text>
-                  </View>
-                  <View className="flex-row items-center">
-                    <TouchableOpacity
-                      onPress={() => decreaseQty(item.id)}
-                      className="bg-gray-200 px-2 rounded"
-                    >
-                      <Text>-</Text>
-                    </TouchableOpacity>
-                    <Text className="px-2">{item.qty}</Text>
-                    <TouchableOpacity
-                      onPress={() => increaseQty(item.id)}
-                      className="bg-gray-200 px-2 rounded"
-                    >
-                      <Text>+</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => removeItem(item.id)}
-                    className="ml-2 bg-red-500 px-2 py-1 rounded"
-                  >
-                    <Text className="text-white text-xs">Remove</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </ScrollView>
+    <Modal visible={cartSideVisible} animationType="slide" transparent>
+  <View className="flex-1 mt-[15%] h-[90%] justify-end items-end bg-black/50">
+    <View className="bg-white rounded-l-2xl p-4 w-[80%] h-full">
+      <Text className="text-lg font-bold mb-4">Cart</Text>
 
-            <View className="mt-4">
-              <Text className="text-sm">Subtotal: Rs. {subtotal}</Text>
-              <Text className="text-sm">Discount: Rs. {discount}</Text>
-              <Text className="font-bold text-sm">Balance: Rs. {balance}</Text>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 100 }} // 👈 ensures space for button
+        showsVerticalScrollIndicator={false}
+      >
+        {cartItems.map((item) => (
+          <View
+            key={item.id}
+            className="flex-row items-center border-b py-2"
+          >
+            <Image source={item.img} className="w-12 h-12 rounded mr-2" />
+            <View className="flex-1">
+              <Text className="font-semibold text-sm">{item.name}</Text>
+              <Text className="text-xs text-gray-600">
+                Rs. {item.price}
+              </Text>
             </View>
-
+            <View className="flex-row items-center">
+              <TouchableOpacity
+                onPress={() => decreaseQty(item.id)}
+                className="bg-gray-200 px-2 rounded"
+              >
+                <Text>-</Text>
+              </TouchableOpacity>
+              <Text className="px-2">{item.qty}</Text>
+              <TouchableOpacity
+                onPress={() => increaseQty(item.id)}
+                className="bg-gray-200 px-2 rounded"
+              >
+                <Text>+</Text>
+              </TouchableOpacity>
+            </View>
             <TouchableOpacity
-              className="bg-primary mt-4 p-3 rounded-lg"
-              onPress={() => setCartSideVisible(false)}
+              onPress={() => removeItem(item.id)}
+              className="ml-2 bg-red-500 px-2 py-1 rounded"
             >
-              <Text className="text-white text-center font-bold">Checkout</Text>
+              <Text className="text-white text-xs">Remove</Text>
             </TouchableOpacity>
           </View>
+        ))}
+
+        {/* Totals */}
+        <View className="mt-4">
+          <Text className="text-sm">Subtotal: Rs. {subtotal}</Text>
+          <Text className="text-sm">Discount: Rs. {discount}</Text>
+          <Text className="font-bold text-sm">Balance: Rs. {balance}</Text>
         </View>
-      </Modal>
+      </ScrollView>
+
+      {/* Fixed Checkout Button */}
+      <TouchableOpacity
+        className="bg-primary mt-4 p-3 rounded-lg"
+        onPress={() => setCartSideVisible(false)}
+      >
+        <Text className="text-white text-center font-bold">Checkout</Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+</Modal>
 
       {/* ⭐ Rate Us Modal */}
       <Modal visible={showRatingModal} transparent animationType="slide">

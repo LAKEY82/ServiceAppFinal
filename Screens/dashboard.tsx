@@ -111,6 +111,8 @@ useEffect(() => {
     try {
       // ✅ Fetch branchId from AsyncStorage
       const storedBranchId = await AsyncStorage.getItem("branchId");
+      const storedEmployeeId = await AsyncStorage.getItem("employeeId");
+      console.log("🔹 Stored employeeId from AsyncStorage:", storedEmployeeId);
       const branchIdNum = storedBranchId ? Number(storedBranchId) : null;
       console.log("🔹 Stored branchId from AsyncStorage:", branchIdNum);
 
@@ -154,15 +156,12 @@ useEffect(() => {
 
         if (numericRoleId === 17 || numericRoleId === 24) {
           treatmentEndpoint = "/TreatmentAppointment/treatment/All";
-        } else if (numericRoleId === 26) {
-          treatmentEndpoint = `/TreatmentAppointment/treatment/${branchEmployeeIdNum}`;
+        } else if (numericRoleId === 26 ) {
+          treatmentEndpoint = `/TreatmentAppointment/treatment/${storedEmployeeId}`;
         } else {
-          if (!supervisorSmidNum) {
-            console.warn("🚫 Invalid supervisorSmid. Skipping treatment fetch.");
-            setTreatments([]);
-            return;
+          if (numericRoleId === 28 || numericRoleId === 30 || numericRoleId === 29) {
+            treatmentEndpoint = `/TreatmentAppointment/treatment/${supervisorSmidNum}`;
           }
-          treatmentEndpoint = `/TreatmentAppointment/treatment/${supervisorSmidNum}`;
         }
 
         console.log("📡 Fetching Treatments From:", treatmentEndpoint);
@@ -274,6 +273,9 @@ useEffect(() => {
     }
   };
 
+  const saveDoctorName = async (type: string, name: string) => {
+  await AsyncStorage.setItem(`${type}_doctorName`, name);
+};
   const getFullImageUrl = (path?: string) => {
     const BASE_URL = "https://chrimgtapp.xenosyslab.com/"; // update this
     if (!path) {
@@ -290,6 +292,7 @@ useEffect(() => {
     // ✅ Determine type and save ID
     if (item.treatmentAppointmentId) {
       await saveAppointmentId("treatment", item.treatmentAppointmentId);
+      await saveDoctorName("treatment", item.doctorName);
     } else if (item.consultationAppointmentId) {
       await saveAppointmentId("consultation", item.consultationAppointmentId);
     }
@@ -367,6 +370,9 @@ useEffect(() => {
           </Text>
           <Text className="text-gray-700 text-center">
             {item.appointmentType ?? viewType}
+          </Text>
+           <Text className="text-gray-700 text-center">
+            {item.doctorName ?? viewType}
           </Text>
           <TouchableOpacity
             onPress={() =>

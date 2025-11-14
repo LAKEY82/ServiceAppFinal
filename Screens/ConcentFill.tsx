@@ -790,7 +790,6 @@ const uploadPhotos = async () => {
         <Picker.Item label="Form Type" value="" />
         <Picker.Item label="Consultation" value="Consultation" />
         <Picker.Item label="Treatment" value="Treatment" />
-        <Picker.Item label="Initial" value="Initial" />
       </Picker>
     </View>
 

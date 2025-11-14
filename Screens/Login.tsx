@@ -50,7 +50,7 @@ const handleLogin = async () => {
     if (response.data && response.data.token) {
       console.log("Login success:", response.data);
 
-      const { branchEmployeeId,branchId, roleId, supervisorSmid, token, userId, userName } =
+      const { branchEmployeeId,branchId,employeeId, roleId, supervisorSmid, token, userId, userName } =
         response.data;
 
       // ✅ Save full user object
@@ -62,6 +62,7 @@ const handleLogin = async () => {
       // ✅ Save roleId separately
       await AsyncStorage.setItem("roleId", roleId.toString());
       await AsyncStorage.setItem("branchId",branchId.toString());
+      await AsyncStorage.setItem("employeeId",employeeId.toString());
 
       console.log("✅ Saved roleId separately:", roleId);
 

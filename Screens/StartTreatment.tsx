@@ -78,10 +78,12 @@ const [blurStates, setBlurStates] = useState<boolean[]>(Array(6).fill(true));
 // After Photos state
 const [fetchedAfterPhotos, setFetchedAfterPhotos] = useState<string[]>([]);
 const [loadingFetchedAfterPhotos, setLoadingFetchedAfterPhotos] = useState(false);
-
+const [loadingReports, setLoadingReports] = useState(false);
 const [beforeBlurStates, setBeforeBlurStates] = useState<boolean[]>(Array(6).fill(true));
 const [afterBlurStates, setAfterBlurStates] = useState<boolean[]>(Array(6).fill(true));
-
+  const [showMedicalReportsModal, setShowMedicalReportsModal] = useState(false);
+  const [medicalReports, setMedicalReports] = useState<any[]>([]);
+  const [doctorName, setDoctorName] = useState<string | null>(null);
   const pickBeforePhoto = async (index: number) => {
   const permission = await ImagePicker.requestCameraPermissionsAsync()
   if (permission.status !== 'granted') {
@@ -95,6 +97,25 @@ const [afterBlurStates, setAfterBlurStates] = useState<boolean[]>(Array(6).fill(
     setBeforePhotos(updated)
   }
 }
+
+//Get the Doctor name
+useEffect(() => {
+  const loadDoctorName = async () => {
+    try {
+      const storedDoctorName = await AsyncStorage.getItem("treatment_doctorName");
+      if (storedDoctorName) {
+        setDoctorName(storedDoctorName);
+        console.log("✅ Loaded doctorName from AsyncStorage:", storedDoctorName);
+      } else {
+        console.log("⚠️ No doctorName found in AsyncStorage");
+      }
+    } catch (error) {
+      console.log("❌ Error reading doctorName:", error);
+    }
+  };
+
+  loadDoctorName();
+}, []);
 
 useEffect(() => {
   const loadAppointmentId = async () => {
@@ -405,6 +426,25 @@ const handleUploadAfterPhotos = async () => {
   }
 }
 
+//Fetch and display the medical reports
+  const fetchMedicalReports = async () => {
+    setLoadingReports(true);
+    try {
+      const res = await api.get(`/PatientHistory/PatientHistory/${customerId}`);
+      console.log("🧾 Medical Reports Response:", res.data);
+      setMedicalReports(Array.isArray(res.data) ? res.data : [res.data]);
+    } catch (err) {
+      console.error("❌ Error fetching medical reports:", err);
+      Alert.alert("Error", "Failed to load medical reports.");
+    } finally {
+      setLoadingReports(false);
+    }
+  };
+
+  const openMedicalReports = async () => {
+    await fetchMedicalReports();
+    setShowMedicalReportsModal(true);
+  };
 
   /** ---------- Header content ---------- **/
   const renderHeaderContent = () => {
@@ -419,6 +459,11 @@ const handleUploadAfterPhotos = async () => {
 />
         <View className="flex-col ml-2">
           <Text className="text-black text-sm font-bold">{client.fullName}</Text>
+          {doctorName && (
+    <Text className="font-medium text-xs text-gray-700">
+      Doctor: {doctorName}
+    </Text>
+  )}
           <Text className="font-medium text-xs">{client.phone}</Text>
           {client.appointmentTime && <Text className="font-medium text-xs">{client.appointmentTime}</Text>}
           {client.treatmentName && <Text className="font-medium text-xs">Treatment: {client.treatmentName}</Text>}
@@ -436,11 +481,12 @@ const handleUploadAfterPhotos = async () => {
         
         
           <TouchableOpacity
-          activeOpacity={1}
             className="bg-primary p-1 rounded-lg w-[130px] items-center justify-center"
-            onPress={() => navigation.navigate('TreatmentConcentform', { customerId,treatmentId,Name:client.fullName })}
+            onPress={openMedicalReports}
           >
-            <Text className="text-white text-xs font-bold text-center">View Consent Form</Text>
+            <Text className="text-white text-xs font-bold text-center">
+              View Medical Reports
+            </Text>
           </TouchableOpacity>
         
         </View>
@@ -633,7 +679,69 @@ const handleUploadAfterPhotos = async () => {
   )}
 </View>
 
+        {/* ---------- Medical Reports Modal ---------- */}
+        <Modal
+          visible={showMedicalReportsModal}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setShowMedicalReportsModal(false)}
+        >
+          <View className="flex-1 bg-black/40 justify-center items-center">
+            <View className="bg-white w-[90%] max-h-[80%] rounded-xl p-4">
+              <Text className="text-lg font-bold text-center mb-3">
+                Medical Reports
+              </Text>
 
+              {loadingReports ? (
+                <ActivityIndicator size="large" color="#000" />
+              ) : medicalReports.length > 0 ? (
+                <ScrollView className="mt-2">
+                  {medicalReports.map((report, idx) => (
+                    <View
+                      key={`${report.consultationId}-${idx}`}
+                      className="border-b border-gray-300 pb-2 mb-2"
+                    >
+                      <Text className="text-sm font-semibold text-primary mb-1">
+                        {report.productName?.trim() || "Unknown Product"}
+                      </Text>
+                      <Text className="text-xs text-gray-700">
+                        <Text className="font-semibold">Code:</Text>{" "}
+                        {report.productCode?.trim() || "N/A"}
+                      </Text>
+                      <Text className="text-xs text-gray-700">
+                        <Text className="font-semibold">Prescribed:</Text>{" "}
+                        {report.prescribeDate || "N/A"}
+                      </Text>
+                      <Text className="text-xs text-gray-700">
+                        <Text className="font-semibold">How to Use:</Text>{" "}
+                        {report.howToUse || "N/A"}
+                      </Text>
+                      <Text className="text-xs text-gray-700">
+                        <Text className="font-semibold">Duration:</Text>{" "}
+                        {report.duration || "N/A"} days
+                      </Text>
+                      <Text className="text-xs text-gray-700">
+                        <Text className="font-semibold">Status:</Text>{" "}
+                        {report.entryStatus?.trim() || "N/A"}
+                      </Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              ) : (
+                <Text className="text-sm text-gray-500 text-center mt-4">
+                  No medical reports found.
+                </Text>
+              )}
+
+              <TouchableOpacity
+                className="bg-primary py-3 rounded-full mt-4 items-center"
+                onPress={() => setShowMedicalReportsModal(false)}
+              >
+                <Text className="text-white font-bold">Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
 
 
       </ScrollView>

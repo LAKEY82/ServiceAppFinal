@@ -115,7 +115,7 @@ const TreatmentAfterPhoto: React.FC = () => {
   const [roleId, setRoleId] = useState<number | null>(null);
 const [loadingFetchedAfterPhotos, setLoadingFetchedAfterPhotos] = useState(false);
 const [afterBlurStates, setAfterBlurStates] = useState<boolean[]>(Array(6).fill(true));
-
+const [doctorName, setDoctorName] = useState<string | null>(null);
 
 
   const pickBeforePhoto = async (index: number) => {
@@ -137,6 +137,25 @@ const [afterBlurStates, setAfterBlurStates] = useState<boolean[]>(Array(6).fill(
       setBeforePhotos(updated);
     }
   };
+
+  //GEt the Doctor Name from AsyncStorage
+  useEffect(() => {
+  const loadDoctorName = async () => {
+    try {
+      const storedDoctorName = await AsyncStorage.getItem("treatment_doctorName");
+      if (storedDoctorName) {
+        setDoctorName(storedDoctorName);
+        console.log("✅ Loaded doctorName from AsyncStorage:", storedDoctorName);
+      } else {
+        console.log("⚠️ No doctorName found in AsyncStorage");
+      }
+    } catch (error) {
+      console.log("❌ Error reading doctorName:", error);
+    }
+  };
+
+  loadDoctorName();
+}, []);
 
   const fetchMedicalReports = async () => {
     setLoadingReports(true);
@@ -389,6 +408,11 @@ useEffect(() => {
           <Text className="text-black text-sm font-bold">
             {client.fullName}
           </Text>
+           {doctorName && (
+    <Text className="font-medium text-xs text-gray-700">
+      Doctor: {doctorName}
+    </Text>
+  )}
           <Text className="font-medium text-xs">{client.phone}</Text>
           {client.appointmentTime && (
             <Text className="font-medium text-xs">
@@ -410,21 +434,6 @@ useEffect(() => {
           >
             <Text className="text-white text-xs font-bold text-center">
               View Profile
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            className="bg-primary p-1 rounded-lg w-[130px] items-center justify-center"
-            onPress={() =>
-              navigation.navigate("TreatmentConcentform", {
-                customerId,
-                treatmentId,
-                Name: client.fullName,
-              })
-            }
-          >
-            <Text className="text-white text-xs font-bold text-center">
-              View Consent Form
             </Text>
           </TouchableOpacity>
 
