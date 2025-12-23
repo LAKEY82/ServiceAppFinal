@@ -12,11 +12,12 @@ import {
   Alert,
   Keyboard,
 } from "react-native";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Navbar from "../components/Navbar";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import api from "../API/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ShoppingCart,Search  } from 'lucide-react-native';
 
 const Appoinments = () => {
   const navigation = useNavigation<any>();
@@ -28,30 +29,56 @@ const Appoinments = () => {
   const [packageTreatments, setPackageTreatments] = useState<any[]>([]);
   const [showAllProducts, setShowAllProducts] = useState(false);
   const [cartItems, setCartItems] = useState<any[]>([]);
+  const [searchTxt, setSearchTxt] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
+    const [seconds, setSeconds] = useState(0);
+  const [isRunning, setIsRunning] = useState(false);
+  const [savedTreatmentAppointmentId, setSavedTreatmentAppointmentId] =
+    useState<number | null>(null);
+  // Rating Modal
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [rating, setRating] = useState(0);
+  const [remark, setRemark] = useState("");
+  const [treatmentAppointmentData, setTreatmentAppointmentData] =
+    useState<any>(null);
+  // Add this below other useState declarations
+  const [timerColor, setTimerColor] = useState("black");
+  const [productData, setProductData] = useState<any[]>([]);
+
+  useEffect(() => {
+  console.log("🟢 Navigated to Appoinments Screen");
+  console.log("👉 Route Params:", route.params);
+  console.log("👉 customerId:", customerId);
+  console.log("👉 treatmentId:", treatmentId);
+  console.log("👉 fromPage:", fromPage);
+  console.log("👉 Saved TreatmentAppointmentId:", savedTreatmentAppointmentId);
+}, [route.params, savedTreatmentAppointmentId]);
 
   //Fetch cart items
   const fetchCartItems = async () => {
-    try {
-      if (!route.params?.customerId) return;
-      const res = await api.get(
-        `/Treatment/Getcart/${route.params.customerId}`
-      );
-      if (res.data.success) {
-        const serverItems = res.data.data.map((item: any) => ({
-          id: item.productCode?.trim() || item.id,
-          name: item.productName,
-          price: item.lastPurchasePrice || 0,
-          volume: item.volume,
-          treatmentId: item.treatmentId,
-          qty: 1, // You can add quantity support later if backend supports it
-        }));
-        setCartItems(serverItems);
-        console.log("🛒 Cart items loaded:", serverItems);
-      }
-    } catch (err: any) {
-      console.log("❌ Error fetching cart:", err.response?.data || err.message);
+  try {
+    if (!route.params?.customerId) return;
+
+    const res = await api.get(`/Treatment/Getcart/${route.params.customerId}`);
+    if (res.data.success) {
+      const serverItems = res.data.data.map((item: any) => ({
+        id: item.id, // ✅ use backend cart item ID
+        productCode: item.productCode?.trim(), // optional, keep for reference
+        name: item.productName,
+        price: item.lastPurchasePrice || 0,
+        volume: item.volume,
+        treatmentId: item.treatmentId,
+        qty: 1, // You can add quantity support later if backend supports it
+      }));
+
+      setCartItems(serverItems);
+      console.log("🛒 Cart items loaded:", serverItems);
     }
-  };
+  } catch (err: any) {
+    console.log("❌ Error fetching cart:", err.response?.data || err.message);
+  }
+};
+
 
   const addToCart = async (item: any) => {
     try {
@@ -98,19 +125,7 @@ const Appoinments = () => {
   };
 
   // Timer
-  const [seconds, setSeconds] = useState(0);
-  const [isRunning, setIsRunning] = useState(false);
-  const [savedTreatmentAppointmentId, setSavedTreatmentAppointmentId] =
-    useState<number | null>(null);
-  // Rating Modal
-  const [showRatingModal, setShowRatingModal] = useState(false);
-  const [rating, setRating] = useState(0);
-  const [remark, setRemark] = useState("");
-  const [treatmentAppointmentData, setTreatmentAppointmentData] =
-    useState<any>(null);
-  // Add this below other useState declarations
-  const [timerColor, setTimerColor] = useState("black");
-  const [productData, setProductData] = useState<any[]>([]);
+
 
   // ⏱ Convert time string (e.g. "09:00 AM") to a Date object
   const parseTimeToSeconds = (timeStr: string) => {
@@ -295,6 +310,7 @@ const Appoinments = () => {
                   treatmentName: treatment?.treatment || "N/A",
                   price: treatment?.discountedPrice || treatment?.price || 0,
                   duration: treatment?.timeDuration || 0,
+
                 });
               });
             }
@@ -361,14 +377,38 @@ const Appoinments = () => {
       )
     );
 
-  const removeItem = (id: string) =>
-    setCartItems((items) => items.filter((item) => item.id !== id));
+const removeItem = async (cartItemId: number) => {
+  try {
+    console.log("Removing cart item (POST) with ID:", cartItemId);
+
+    const response = await api.post(
+      "Treatment/customer/cart/remove",
+      cartItemId, // send raw number
+      { headers: { "Content-Type": "application/json" } }
+    );
+
+    console.log("POST API response:", response.data);
+
+    if (response.data?.success) {
+      setCartItems((prev) => prev.filter((item) => item.id !== cartItemId));
+      console.log(`Cart item ${cartItemId} removed successfully via POST`);
+    } else {
+      console.error(`Failed to remove cart item via POST: ${response.data?.message}`);
+    }
+  } catch (error: any) {
+    console.error("POST remove item error:", error.response?.data || error.message);
+  }
+};
+
+
+
 
   const subtotal = cartItems.reduce(
     (acc, item) => acc + item.price * item.qty,
     0
   );
-  const discount = subtotal * 0.05;
+  // const discount = subtotal * 0.05;
+  const discount = 0;
   const balance = subtotal - discount;
 
   //Customer feedback and rating api
@@ -412,7 +452,7 @@ const Appoinments = () => {
       navigation.navigate("TreatmentAfterPhoto", {
         formData: {
           customerId: customerId,
-          treatmentId: treatmentId,
+          treatmentId: savedTreatmentAppointmentId,
         },
       });
     } catch (error: any) {
@@ -423,6 +463,15 @@ const Appoinments = () => {
       Alert.alert("Error", "Failed to submit feedback. Please try again.");
     }
   };
+
+  const filteredProducts = useMemo(() => {
+  if (!searchTxt.trim()) return productData;
+  return productData.filter(p =>
+    p.productName?.toLowerCase().includes(searchTxt.toLowerCase())
+  );
+}, [productData, searchTxt]);
+
+//Delete from the Cart
 
   return (
     <View className="flex-1 bg-white">
@@ -452,14 +501,14 @@ const Appoinments = () => {
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
+          {/* <TouchableOpacity
             className="px-4 py-2 w-[30%] items-center rounded-lg bg-white"
             onPress={() => {
               setIsRunning(false);
             }}
           >
             <Text className="text-black font-bold text-sm">Pause</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
         {treatmentAppointmentData && (
           <View className="mt-3 flex-row items-center justify-center gap-x-6">
@@ -523,7 +572,7 @@ const Appoinments = () => {
         </View> */}
 
         {/* Package Treatments Table */}
-        <View className="bg-gray-50 p-3 rounded-xl mb-[12%] shadow-sm">
+        {/* <View className="bg-gray-50 p-3 rounded-xl mb-[12%] shadow-sm">
           <Text className="font-bold text-base mb-2">
             🎁 Package Treatments
           </Text>
@@ -555,7 +604,7 @@ const Appoinments = () => {
                     <Text className="w-24 text-xs">{t.duration} min</Text>
                     <Text className="w-24 text-xs">Rs. {t.price}</Text>
 
-                    {/* ✅ Add to Cart for every package treatment */}
+                 
                     <View className="w-28">
                       <TouchableOpacity
                         className="bg-primary px-2 py-1 rounded-lg"
@@ -583,7 +632,7 @@ const Appoinments = () => {
             </View>
           </ScrollView>
 
-          {/* ✅ View Cart Button */}
+          
           <View className="items-center self-end w-[30%] mt-[4%] ">
             <TouchableOpacity
               className="bg-primary px-2 py-1 rounded-lg shadow-md"
@@ -594,10 +643,54 @@ const Appoinments = () => {
               </Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </View> */}
         {/* Products Table */}
         <View className="bg-gray-50 p-3 rounded-xl mb-16 shadow-sm">
-          <Text className="font-bold text-base mb-2">🧴 Products</Text>
+<View className="flex-row justify-between items-center mb-2">
+    <Text className="font-bold text-base">🧴 Products</Text>
+
+  <View className="flex-row items-center gap-x-2">
+    {/* ---- search icon ---- */}
+    <TouchableOpacity
+      onPress={() => setShowSearch(s => !s)}
+      className="p-2"
+    >
+      {/* lucide search icon */}
+      {/* if you prefer another lib, swap the icon name */}
+      {/* @ts-ignore */}
+      <Search size={20} color="#000" />
+    </TouchableOpacity>
+
+    {/* ---- cart button (unchanged) ---- */}
+    <TouchableOpacity
+      className="bg-primary px-3 py-1 rounded-lg shadow-md flex-row items-center"
+      onPress={async () => {
+        await fetchCartItems();
+        setCartSideVisible(true);
+      }}
+    >
+      <ShoppingCart size={18} color="#fff" />
+      {cartItems.length > 0 && (
+        <View className="bg-red-500 rounded-full px-2 py-0.5 ml-2">
+          <Text className="text-white text-xs font-bold">{cartItems.length}</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  </View>
+</View>
+
+{/* ---- collapsible search input ---- */}
+{showSearch && (
+  <View className="mb-3">
+    <TextInput
+      className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+      placeholder="Search product name..."
+      placeholderTextColor="#999"
+      value={searchTxt}
+      onChangeText={setSearchTxt}
+    />
+  </View>
+)}
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View>
@@ -613,92 +706,81 @@ const Appoinments = () => {
               </View>
 
               {/* Product Rows */}
-              {productData.length > 0 ? (
-                <>
-                  {productData
-                    .slice(0, showAllProducts ? productData.length : 5)
-                    .map((p, index) => (
-                      <View
-                        key={index}
-                        className="flex-row border-b border-gray-200 p-2 items-center"
-                      >
-                        {/* Remove trailing spaces from code */}
-                        <Text className="w-32 text-xs">
-                          {p.productCode?.trim()}
-                        </Text>
+ {/* ---------- SEARCH-AWARE PRODUCT LIST ---------- */}
+{filteredProducts.length === 0 ? (
+  <Text className="text-xs p-2 text-gray-500">
+    {searchTxt.trim() ? "No matching products." : "No products available."}
+  </Text>
+) : (
+  <>
+    {filteredProducts
+      .slice(0, showAllProducts ? filteredProducts.length : 5)
+      .map((p, index) => (
+        <View
+          key={index}
+          className="flex-row border-b border-gray-200 p-2 items-center"
+        >
+          {/* Product Code */}
+          <Text className="w-32 text-xs">{p.productCode?.trim()}</Text>
 
-                        {/* Product Name */}
-                        <Text className="w-48 text-xs" numberOfLines={1}>
-                          {p.productName || "N/A"}
-                        </Text>
+          {/* Product Name */}
+          <Text className="w-48 text-xs" numberOfLines={1}>
+            {p.productName || "N/A"}
+          </Text>
 
-                        {/* Volume (show N/A if blank) */}
-                        <Text className="w-24 text-xs">
-                          {p.volume?.trim() !== "" ? p.volume : "N/A"}
-                        </Text>
+          {/* Volume */}
+          <Text className="w-24 text-xs">
+            {p.volume?.trim() !== "" ? p.volume : "N/A"}
+          </Text>
 
-                        {/* Price with comma formatting */}
-                        <Text className="w-28 text-xs">
-                          {p.lastPurchasePrice
-                            ? p.lastPurchasePrice.toLocaleString("en-LK", {
-                                minimumFractionDigits: 2,
-                              })
-                            : "0.00"}
-                        </Text>
+          {/* Price */}
+          <Text className="w-28 text-xs">
+            {p.lastPurchasePrice
+              ? p.lastPurchasePrice.toLocaleString("en-LK", {
+                  minimumFractionDigits: 2,
+                })
+              : "0.00"}
+          </Text>
 
-                        {/* Add to Cart Button */}
-                        <View className="w-28">
-                          <TouchableOpacity
-                            className="bg-primary px-2 py-1 rounded-lg"
-                            onPress={() =>
-                              addToCart({
-                                id: p.productCode?.trim(),
-                                name: p.productName,
-                                price: p.lastPurchasePrice || 0,
-                                img: require("../assets/pp.jpg"),
-                              })
-                            }
-                          >
-                            <Text className="text-white text-xs text-center">
-                              Add to Cart
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    ))}
+          {/* Add to Cart Button */}
+          <View className="w-28">
+            <TouchableOpacity
+              className="bg-primary px-2 py-1 rounded-lg"
+              onPress={() =>
+                addToCart({
+                  id: p.productCode?.trim(),
+                  name: p.productName,
+                  price: p.lastPurchasePrice || 0,
+                  img: require("../assets/pp.jpg"),
+                })
+              }
+            >
+              <Text className="text-white text-xs text-center">
+                Add to Cart
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ))}
 
-                  {/* See More / See Less Button */}
-                  {productData.length > 10 && (
-                    <TouchableOpacity
-                      className="p-2 mt-2 bg-gray-200 rounded-lg items-center"
-                      onPress={() => setShowAllProducts(!showAllProducts)}
-                    >
-                      <Text className="text-xs font-semibold text-gray-700">
-                        {showAllProducts ? "See Less ▲" : "See More ▼"}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </>
-              ) : (
-                <Text className="text-xs p-2 text-gray-500">
-                  No products available.
-                </Text>
-              )}
+    {/* See More / See Less Button */}
+    {filteredProducts.length > 10 && (
+      <TouchableOpacity
+        className="p-2 mt-2 bg-gray-200 rounded-lg items-center"
+        onPress={() => setShowAllProducts(!showAllProducts)}
+      >
+        <Text className="text-xs font-semibold text-gray-700">
+          {showAllProducts ? "See Less ▲" : "See More ▼"}
+        </Text>
+      </TouchableOpacity>
+    )}
+  </>
+)}
+{/* ----------------------------------------------- */}
             </View>
           </ScrollView>
           {/* ✅ View Products Cart Button */}
           <View className="items-center self-end w-[35%] mt-[4%]">
-            <TouchableOpacity
-              className="bg-primary px-2 py-1 rounded-lg shadow-md"
-              onPress={async () => {
-                await fetchCartItems(); // ⬅️  call the function here
-                setCartSideVisible(true); // show the modal afterwards
-              }}
-            >
-              <Text className="text-white font-semibold text-sm">
-                View Cart
-              </Text>
-            </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
@@ -742,29 +824,48 @@ const Appoinments = () => {
                 <Text>+</Text>
               </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              onPress={() => removeItem(item.id)}
-              className="ml-2 bg-red-500 px-2 py-1 rounded"
-            >
-              <Text className="text-white text-xs">Remove</Text>
-            </TouchableOpacity>
+<TouchableOpacity
+  onPress={() => {
+    Alert.alert(
+      "Remove Item",
+      "Are you sure you want to remove this item from the cart?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Yes", 
+          onPress: () => removeItem(item.id) // call your remove function
+        }
+      ],
+      { cancelable: true }
+    );
+  }}
+  className="ml-2 bg-red-500 px-2 py-1 rounded"
+>
+  <Text className="text-white text-xs">Remove</Text>
+</TouchableOpacity>
+
+
           </View>
         ))}
 
         {/* Totals */}
-        <View className="mt-4">
-          <Text className="text-sm">Subtotal: Rs. {subtotal}</Text>
-          <Text className="text-sm">Discount: Rs. {discount}</Text>
-          <Text className="font-bold text-sm">Balance: Rs. {balance}</Text>
-        </View>
+       {/* Totals */}
+{/* Totals */}
+<View className="mt-4 w-full">
+  <Text className="text-sm text-right">Subtotal: Rs. {subtotal}</Text>
+  <Text className="text-sm text-right">Discount: Rs. {discount}</Text>
+  <Text className="font-bold text-sm text-right">Balance: Rs. {balance}</Text>
+</View>
+
+
       </ScrollView>
 
       {/* Fixed Checkout Button */}
       <TouchableOpacity
-        className="bg-primary mt-4 p-3 rounded-lg"
+        className="bg-primary mt-4 p-3  mb-[20%] rounded-lg"
         onPress={() => setCartSideVisible(false)}
       >
-        <Text className="text-white text-center font-bold">Checkout</Text>
+        <Text className="text-white text-center font-bold">Close</Text>
       </TouchableOpacity>
     </View>
   </View>

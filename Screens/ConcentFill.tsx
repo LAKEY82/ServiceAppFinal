@@ -7,9 +7,12 @@ import * as ImagePicker from "expo-image-picker";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import api from "../API/api"; // your axios instance
 import { Camera, Image as ImageIcon, X } from "lucide-react-native";
-import DropDownPicker from 'react-native-dropdown-picker';
 import { Picker } from '@react-native-picker/picker';
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import SelectDropdown from "react-native-select-dropdown";
+import CustomDropdown from "../components/CustomDropdown ";
+import * as ImageManipulator from "expo-image-manipulator";
+
 type RootStackParamList = {
   ConcentFill: {
     id: string;
@@ -19,6 +22,7 @@ type RootStackParamList = {
     initialStatus:string;
     treatmentAppointmentId:number;
     consultationAppointmentId:number;
+    beforePhotoStatus?:string;
   };
   Startconsultation: { formData: any };
 };
@@ -49,7 +53,7 @@ interface ConsentForm {
 const ConcentFill = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<ConcentFillRouteProp>();
-  const { id, consultationId,initialStatus,treatmentAppointmentId,consultationAppointmentId, appointmentType, treatmentId } = route.params;
+  const { id, consultationId,initialStatus,treatmentAppointmentId,consultationAppointmentId,beforePhotoStatus, appointmentType, treatmentId } = route.params;
 
   console.log("The Params:", route.params);
   //Logg the Async storages
@@ -60,7 +64,7 @@ const ConcentFill = () => {
       const savedConsultationId = await AsyncStorage.getItem("consultationAppointmentId");
       const roleId = await AsyncStorage.getItem("roleId");
       console.log("The Role ID is:",roleId);
-      console.log("✅ Saved TreatmentAppointmentId:", savedTreatmentId);
+      console.log("✅ Saved TreatmentAppointmentId:", savedTreatmentId); 
       console.log("✅ Saved ConsultationAppointmentId:", savedConsultationId);
       console.log("✅ Params → TreatmentAppointmentId:", treatmentAppointmentId);
       console.log("✅ Params → ConsultationAppointmentId:", consultationAppointmentId);
@@ -85,16 +89,6 @@ const ConcentFill = () => {
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [accepted, setAccepted] = useState(false);
-
-  //Thisis for the picker
-  // NOTE: we're replacing native Picker with react-native-dropdown-picker
-  // const [formValue, setFormValue] = useState<string | null>("Consultation"); // default
-  // const [formOpen, setFormOpen] = useState(false);
-  // const [formItems, setFormItems] = useState([
-  //   { label: 'Consultation', value: 'Consultation' },
-  //   { label: 'Treatment', value: 'Treatment' },
-  // ]);
-
   const [availableForms, setAvailableForms] = useState<
     { date: string; pdfLocations: string[] }[]
   >([]);
@@ -151,7 +145,7 @@ const ConcentFill = () => {
       }
     } catch (error) {
       console.error("❌ Error fetching filled forms:", error);
-      Alert.alert("Error", "Failed to load filled forms.");
+      // Alert.alert("Error", "Failed to load filled forms.");
     } finally {
       setLoadingForms(false);
     }
@@ -177,7 +171,7 @@ useEffect(() => {
       } 
       // 🟡 Otherwise, use the appropriate endpoint
       else if (appointmentType === "Consultation") {
-        endpoint = `/ConcentForm/concent/consultation/${consultationId}`;
+        endpoint = `/ConcentForm/concent/consultation/${2}`;
       } 
       else if (appointmentType === "Treatment") {
         if (!treatmentId) {
@@ -185,7 +179,7 @@ useEffect(() => {
           setLoading(false);
           return;
         }
-        endpoint = `/ConcentForm/concent/treatment/${treatmentId}`;
+        endpoint = `/ConcentForm/concent/treatment/${25}`;
       } 
       else {
         setError("Invalid appointment type.");
@@ -199,7 +193,7 @@ useEffect(() => {
       const response = await api.get(endpoint, {
         params:
           initialStatus === "notfilled"
-            ? { customerId: id, consultationId: consultationId || 0 }
+            ? { customerId: id, consultationId: consultationAppointmentId || 0 }
             : {},
       });
 
@@ -241,43 +235,51 @@ useEffect(() => {
   fetchConsentForm();
 }, [appointmentType, consultationId, treatmentId, initialStatus]);
 
+// compress the image before uploading
+const compressImage = async (uri: string) => {
+  try {
+    const result = await ImageManipulator.manipulateAsync(
+      uri,
+      [{ resize: { width: 900 } }],   // reduce resolution
+      {
+        compress: 0.6,               // 0–1 (lower = more compression)
+        format: ImageManipulator.SaveFormat.JPEG,
+      }
+    );
+    return result.uri;
+  } catch (error) {
+    console.log("Image compression error: ", error);
+    return uri;
+  }
+};
 
 
   const handleTextChange = (questionId: number, text: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: text }));
   };
 
-  const openImagePicker = async () => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        allowsMultipleSelection: true,
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.8,
-      });
-      if (!result.canceled) {
-        const uris = result.assets.map((asset) => asset.uri);
-        setSelectedImages((prev) => [...prev, ...uris]);
-      }
-    } catch (error) {
-      console.error(error);
-      Alert.alert("Error", "Failed to pick images");
-    }
-  };
+const openImagePicker = async () => {
+  let result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    quality: 1,
+  });
 
-  const openCamera = async () => {
-    try {
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.8,
-      });
-      if (!result.canceled) {
-        setSelectedImages((prev) => [...prev, result.assets[0].uri]);
-      }
-    } catch (error) {
-      console.error(error);
-      Alert.alert("Error", "Failed to open camera");
-    }
-  };
+  if (!result.canceled) {
+    const compressedUri = await compressImage(result.assets[0].uri);
+    setSelectedImages(prev => [...prev, compressedUri]);
+  }
+};
+
+const openCamera = async () => {
+  let result = await ImagePicker.launchCameraAsync({
+    quality: 1,
+  });
+
+  if (!result.canceled) {
+    const compressedUri = await compressImage(result.assets[0].uri);
+    setSelectedImages(prev => [...prev, compressedUri]);
+  }
+};
 
   const handleRadioSelect = (questionId: number, option: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: option }));
@@ -310,34 +312,68 @@ const uploadPhotos = async () => {
 
     const roleId = await AsyncStorage.getItem("roleId");
     const parsedRoleId = Number(roleId);
+
     console.log("🔵 Role ID during upload:", parsedRoleId);
+    console.log("📥 RAW ROUTE PARAMS:", route.params);
 
     const formData = new FormData();
 
+    // ---------------- BASIC FIELDS ----------------
+    console.log("📤 customerId =", id);
     formData.append("customerId", id);
 
-    // ✅ Determine form type
     let uploadFormType = appointmentType;
     if (initialStatus === "notfilled") {
       uploadFormType = "Initial";
     }
 
+    console.log("📤 formType =", uploadFormType);
     formData.append("formType", uploadFormType);
 
-    // ✅ Append consultation / treatment IDs
+    // ---------------- ID MAPPING (IMPORTANT PART) ----------------
+    const rawTreatmentAppointmentId = (route.params as any).TreatmentAppointmentId;
+
+    console.log("🧩 ID SOURCE VALUES");
+    console.log("   appointmentType =", appointmentType);
+    console.log("   consultationId =", consultationId);
+    console.log("   consultationAppointmentId =", consultationAppointmentId);
+    console.log("   TreatmentAppointmentId (RAW) =", rawTreatmentAppointmentId);
+
+    let backendConsultationId = "0";
+    let backendTreatmentId = "0";
+
     if (appointmentType === "Treatment") {
-      formData.append("consultationId", "0");
-      formData.append("treatmentId", treatmentId?.toString() || "0");
+      if (!rawTreatmentAppointmentId) {
+        throw new Error("TreatmentAppointmentId is missing");
+      }
+      backendTreatmentId = String(rawTreatmentAppointmentId);
     } else {
-      formData.append("consultationId", consultationId?.toString() || "0");
-      formData.append("treatmentId", "0");
+      if (!consultationAppointmentId) {
+        throw new Error("ConsultationAppointmentId is missing");
+      }
+      backendConsultationId = String(consultationAppointmentId);
     }
 
-    // ✅ Append images
+    console.log("📦 FINAL BACKEND IDS");
+    console.log("   consultationId →", backendConsultationId);
+    console.log("   treatmentId →", backendTreatmentId);
+
+    formData.append("consultationId", backendConsultationId);
+    formData.append("treatmentId", backendTreatmentId);
+
+    // ---------------- IMAGES ----------------
+    console.log("🖼️ Total images selected:", selectedImages.length);
+
     selectedImages.forEach((uri, index) => {
       const filename = uri.split("/").pop() || `photo_${index}.jpg`;
       const match = /\.(\w+)$/.exec(filename);
       const type = match ? `image/${match[1]}` : `image/jpeg`;
+
+      console.log(`📸 Image ${index + 1}`, {
+        uri,
+        filename,
+        type,
+      });
 
       formData.append("files", {
         uri,
@@ -346,28 +382,78 @@ const uploadPhotos = async () => {
       } as any);
     });
 
-    // ✅ Upload to API
-    const response = await api.post("/ConcentForm/upload/Concentform", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
+    // ---------------- FINAL PAYLOAD DUMP ----------------
+    console.log("🔥 --- FINAL FORM DATA SENT TO BACKEND ---");
+    (formData as any)._parts?.forEach((p: any) => {
+      console.log(`➡️ ${p[0]} :`, p[1]);
     });
+    console.log("🔥 --- END FORM DATA ---");
+
+    // ---------------- API CALL ----------------
+    const response = await api.post(
+      "/ConcentForm/upload/Concentform",
+      formData,
+      { headers: { "Content-Type": "multipart/form-data" } }
+    );
 
     console.log("✅ Upload successful:", response.data);
 
-    // Reset modal and selections
+    // ---------------- UI / NAVIGATION ----------------
     setUploadModalVisible(false);
     setSelectedImages([]);
 
-    // ✅ ROLE-BASED BEHAVIOR
-    if (parsedRoleId === 17 || parsedRoleId === 24) {
-      console.log("✅ Role ID is 17 or 24 → Showing success modal");
+    if (parsedRoleId === 15 || parsedRoleId === 8) {
       setSuccessModalVisible(true);
-    } else {
-      console.log("✅ Role ID is other → Proceed with normal navigation");
 
-      // Navigate based on appointment type
+    } else if (parsedRoleId === 20 || parsedRoleId === 21) {
+
+      const cleanedStatus = beforePhotoStatus?.toString().trim().toLowerCase();
+
+      if (cleanedStatus === "taken") {
+        navigation.navigate("Appoinments");
+      } else {
+        if (appointmentType === "Treatment") {
+          navigation.navigate("StartTreatment", {
+            formData: {
+              customerId: id,
+              consultationId: 0,
+              treatmentAppointmentId: rawTreatmentAppointmentId,
+            },
+          });
+        } else {
+          navigation.navigate("Startconsultation", {
+            customerId: id,
+            consultationAppointmentId,
+          });
+        }
+      }
+
+    } else if (parsedRoleId === 17 || parsedRoleId === 19) {
+
       if (appointmentType === "Treatment") {
         navigation.navigate("StartTreatment", {
-          formData: { customerId: id, consultationId: 0, treatmentAppointmentId },
+          formData: {
+            customerId: id,
+            consultationId: 0,
+            treatmentAppointmentId: rawTreatmentAppointmentId,
+          },
+        });
+      } else {
+        navigation.navigate("Startconsultation", {
+          customerId: id,
+          consultationAppointmentId,
+        });
+      }
+
+    } else {
+
+      if (appointmentType === "Treatment") {
+        navigation.navigate("StartTreatment", {
+          formData: {
+            customerId: id,
+            consultationId: 0,
+            treatmentAppointmentId: rawTreatmentAppointmentId,
+          },
         });
       } else {
         navigation.navigate("Startconsultation", {
@@ -379,15 +465,18 @@ const uploadPhotos = async () => {
 
   } catch (error: any) {
     console.error("❌ Upload error:", error);
+
     if (error.response) {
-      console.log("🔴 Server responded with:", error.response.data);
+      console.log("🔴 Server response:", error.response.data);
       console.log("🔴 Status code:", error.response.status);
     }
+
     Alert.alert("Error", "Failed to upload photos");
   } finally {
     setUploading(false);
   }
 };
+
 
 
 
@@ -633,9 +722,9 @@ const uploadPhotos = async () => {
       const roleId = await AsyncStorage.getItem("roleId");
       const parsedRoleId = Number(roleId);
 
-      // 🟡 If RoleId is 29 or 30 → Skip upload modal
-      if (parsedRoleId === 29 || parsedRoleId === 30 || parsedRoleId === 26 || parsedRoleId === 28) {
-        console.log("🚫 Role 29/30/26/28 → Skipping photo upload.");
+      // 🟡 If RoleId is 20 or 21 → Skip upload modal
+      if (parsedRoleId === 20 || parsedRoleId === 21 || parsedRoleId === 17 || parsedRoleId === 19) {
+        console.log("🚫 Role 20/21/17/19 → Skipping photo upload.");
 
         if (appointmentType === "Treatment") {
           navigation.navigate("StartTreatment", {
@@ -751,6 +840,8 @@ const uploadPhotos = async () => {
 
 
 {/* ------------------ View Form Images Modal (UPDATED) ------------------ */}
+import CustomDropdown from "../components/CustomDropdown";
+
 <Modal
   visible={viewFormModalVisible}
   transparent
@@ -772,67 +863,49 @@ const uploadPhotos = async () => {
       </View>
 
       {/* Dropdowns */}
-<View className="mb-4">
-  {/* <Text className="text-gray-700 mb-1 font-medium">View Form Images</Text> */}
+      <View className="mb-4 flex-row justify-between">
 
-  {/* Two side-by-side dropdowns */}
-  <View className="flex-row justify-between">
-    {/* Form Type Picker */}
-    <View className="flex-1 border border-gray-300 rounded-lg mr-2">
-      <Picker
-        mode="dropdown"
-        selectedValue={formType}
-        onValueChange={(value) => {
-          setFormType(value);
-          fetchFilledForms(value);
-        }}
-      >
-        <Picker.Item label="Form Type" value="" />
-        <Picker.Item label="Consultation" value="Consultation" />
-        <Picker.Item label="Treatment" value="Treatment" />
-      </Picker>
-    </View>
+        {/* Form Type */}
+        <View className="flex-1 mr-2">
+          <CustomDropdown
+            data={["Consultation", "Treatment"]}
+            value={formType}
+            placeholder="Select Form Type"
+            onSelect={(val) => {
+              setFormType(val);
+              fetchFilledForms(val);
+            }}
+          />
+        </View>
 
-    {/* Date Picker */}
-    <View className="flex-1 border border-gray-300 rounded-lg ml-2">
-      <Picker
-        mode="dropdown"
-        selectedValue={selectedDate}
-        enabled={availableForms.length > 0}
-        onValueChange={(value) => {
-          setSelectedDate(value);
-          const selected = availableForms.find((f) => f.date === value);
-          setFormImages(selected?.pdfLocations || []);
-        }}
-      >
-        <Picker.Item
-          label={
-            availableForms.length > 0
-              ? "Select Date"
-              : "No forms available"
-          }
-          value=""
-        />
-        {availableForms.map((f, idx) => (
-          <Picker.Item key={idx} label={f.date} value={f.date} />
-        ))}
-      </Picker>
-    </View>
-  </View>
-</View>
+        {/* Date */}
+        <View className="flex-1 ml-2">
+          <CustomDropdown
+            data={availableForms.map((f) => f.date)}
+            value={selectedDate}
+            placeholder={
+              availableForms.length ? "Select Date" : "No forms available"
+            }
+            onSelect={(date) => {
+              setSelectedDate(date);
+              const s = availableForms.find((f) => f.date === date);
+              setFormImages(s?.pdfLocations || []);
+            }}
+          />
+        </View>
+      </View>
 
-
-      {/* Images Scroll */}
+      {/* Images */}
       <ScrollView
         className="mt-3"
         contentContainerStyle={{ alignItems: "center" }}
       >
         {loadingForms ? (
-          <ActivityIndicator size="large" color="#0D6EFD" />
+          <ActivityIndicator size="large" />
         ) : formImages.length > 0 ? (
-          formImages.map((uri, index) => (
+          formImages.map((uri, idx) => (
             <Image
-              key={index}
+              key={idx}
               source={{ uri }}
               className="w-72 h-96 rounded-xl mb-4"
               resizeMode="contain"
@@ -845,32 +918,40 @@ const uploadPhotos = async () => {
         )}
       </ScrollView>
 
-      {/* Acceptance Checkbox */}
+      {/* Checkbox */}
       <View className="flex-row items-center mt-2 mb-3">
         <TouchableOpacity
           onPress={() => setAccepted(!accepted)}
           className="w-6 h-6 border-2 border-gray-400 rounded-md mr-2 items-center justify-center"
         >
-          {accepted && <View className="w-3.5 h-3.5 bg-primary rounded-sm" />}
+          {accepted && <View className="w-3.5 h-3.5 bg-primary" />}
         </TouchableOpacity>
         <Text className="flex-1 text-gray-700">
           I have read the consent form and accept it.
         </Text>
       </View>
 
-      {/* Submit Button */}
+      {/* Submit */}
       <TouchableOpacity
         disabled={!accepted}
         onPress={() => setViewFormModalVisible(false)}
-        className={`py-3 rounded-xl mt-3 ${accepted ? "bg-primary" : "bg-gray-300"}`}
+        className={`py-3 rounded-xl mt-3 ${
+          accepted ? "bg-primary" : "bg-gray-300"
+        }`}
       >
-        <Text className={`text-center font-semibold ${accepted ? "text-white" : "text-gray-500"}`}>
+        <Text
+          className={`text-center font-semibold ${
+            accepted ? "text-white" : "text-gray-500"
+          }`}
+        >
           Submit
         </Text>
       </TouchableOpacity>
     </View>
   </View>
 </Modal>
+
+
 {/* ✅ SUCCESS MODAL FOR ROLE 24 */}
 <Modal
   transparent

@@ -1,7 +1,7 @@
-// Startconsultation.tsx
 import React, { useEffect, useState } from "react";
 import {
   View,
+  Modal,
   Text,
   Image,
   TouchableOpacity,
@@ -16,19 +16,9 @@ import { Camera } from "lucide-react-native";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import api from "../API/api";
 import { BlurView } from "expo-blur";
+import { Pressable } from "react-native";
 
 /** ---------- Types ---------- **/
-
-interface ClientApiResponse {
-  salutation?: string;
-  fname?: string;
-  lname?: string;
-  mobileNo?: string;
-  appointmentTime?: string;
-  treatmentName?: string;
-  profilePhotoUrl?: string;
-  id?: string | number;
-}
 
 interface ClientProfile {
   id?: string | number;
@@ -47,26 +37,13 @@ interface TreatmentItem {
   [k: string]: any;
 }
 
-/** RootStackParamList - include all screens & params we pass around **/
 type RootStackParamList = {
-  ConcentFill: { id: string; consultationId: number };
-  Startconsultation: { customerId: string; consultationId: number };
-  Profile: { id: string }; // ✅ Add this line
-  StartTreatment: {
+  Startconsultation: {
     customerId: string;
     consultationId: number;
-    client: ClientProfile | null;
-    treatments: TreatmentItem[];
-    photos: (string | null)[];
+    consultationAppointmentId?: number;
   };
-  AfterConsultation: {
-    photos: (string | null)[];
-    client?: ClientProfile | null;
-    treatments?: TreatmentItem[];
-    consultationId?: number;
-    customerId?: string;
-  };
-  ConsentForm: { consultationId: number; customerId: string }; // ✅ Add this
+  Profile: { id: string };
 };
 
 type StartConsultationRouteProp = RouteProp<
@@ -74,82 +51,116 @@ type StartConsultationRouteProp = RouteProp<
   "Startconsultation"
 >;
 
+const baseUrl = "https://chrimgtapp.xenosyslab.com";
+
+/** ---------- Photo Box ---------- **/
+const PhotoBox = ({
+  uri,
+  onPress,
+  onLongPress,
+}: {
+  uri?: string | null;
+  onPress?: () => void;
+  onLongPress?: () => void;
+}) => {
+  return (
+    <Pressable
+      onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={300}
+      className="w-[30%] h-24 bg-white mb-3 rounded-md border border-gray-300 overflow-hidden"
+    >
+      {uri ? (
+        <View className="w-full h-full">
+          {/* Image */}
+          <Image
+            source={{ uri }}
+            style={{ width: "100%", height: "100%" }}
+            resizeMode="cover"
+          />
+
+          {/* Blur overlay */}
+          <BlurView
+            intensity={80}
+            tint="dark"
+            style={{
+              position: "absolute",
+              top: 0,
+              bottom: 0,
+              left: 0,
+              right: 0,
+            }}
+          />
+        </View>
+      ) : (
+        <View className="flex-1 items-center justify-center">
+          <Camera size={20} color="#666" />
+        </View>
+      )}
+    </Pressable>
+  );
+};
+
+
 /** ---------- Component ---------- **/
 
 const Startconsultation: React.FC = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<StartConsultationRouteProp>();
 
-  // Extract params safely
-  const customerId =
-    (route.params && route.params.customerId) ??
-    String((route.params as any)?.formData?.id ?? "");
-  const consultationId =
-    (route.params && route.params.consultationId) ??
-    Number((route.params as any)?.formData?.consultationId ?? 0);
+  const customerId = route.params?.customerId;
+  const consultationAppointmentId =
+    route.params?.consultationAppointmentId ??
+    route.params?.consultationId;
 
-  // local state
+  /** ---------- State ---------- **/
   const [photos, setPhotos] = useState<(string | null)[]>(Array(6).fill(null));
   const [client, setClient] = useState<ClientProfile | null>(null);
   const [treatments, setTreatments] = useState<TreatmentItem[]>([]);
-  const [loadingClient, setLoadingClient] = useState<boolean>(true);
-  const [loadingTreatments, setLoadingTreatments] = useState<boolean>(true);
-  const [uploading, setUploading] = useState<boolean>(false);
+  const [loadingClient, setLoadingClient] = useState(true);
+  const [loadingTreatments, setLoadingTreatments] = useState(true);
+  const [uploading, setUploading] = useState(false);
 
-  // Debug log params
-  useEffect(() => {
-    console.log("Startconsultation params:", route.params);
-    console.log("customerId:", customerId, "consultationId:", consultationId);
-  }, [route.params]);
+  const [oldBeforePhotos, setOldBeforePhotos] = useState<string[]>([]);
+  const [loadingOldPhotos, setLoadingOldPhotos] = useState(true);
 
-  // Fetch client profile
-  // useEffect(() => {
-  //   if (!customerId) {
-  //     setLoadingClient(false);
-  //     return;
-  //   }
+  const [showMedicalReportsModal, setShowMedicalReportsModal] = useState(false);
+  const [medicalReports, setMedicalReports] = useState<any[]>([]);
+  const [loadingReports, setLoadingReports] = useState(false);
+  const [previewVisible, setPreviewVisible] = useState(false);
+const [previewImage, setPreviewImage] = useState<string | null>(null);
 
-  // 🖼️ Safely build the correct image URL
-const baseUrl = "https://chrimgtapp.xenosyslab.com";
-let finalUrl = null;
 
-  /** ---------- Fetch client ---------- **/
+  /** ---------- Fetch Client ---------- **/
   useEffect(() => {
     const fetchClient = async () => {
-      setLoadingClient(true)
       try {
-        const res = await api.get(`/ClientProfile/clientprofile/${customerId}`)
-        const data = res.data
-        console.log("Client Profile Response:", res.data)
+        const res = await api.get(
+          `/ClientProfile/clientprofile/${customerId}`
+        );
+        const data = res.data;
+
         setClient({
           id: data.id,
-          fullName: `${data.salutation ?? ''} ${data.fname ?? ''} ${data.lname ?? ''}`.trim() || 'Unknown',
-          phone: data.mobileNo ?? 'N/A',
+          fullName: `${data.salutation ?? ""} ${data.fname ?? ""} ${
+            data.lname ?? ""
+          }`.trim(),
+          phone: data.mobileNo ?? "N/A",
           appointmentTime: data.appointmentTime,
           treatmentName: data.treatmentName,
           profilePhotoUrl: data.profilePic,
-        })
-      } catch (err) {
-        console.error('Failed to fetch client profile:', err)
-        Alert.alert('Error', 'Could not load client profile.')
+        });
+      } catch {
+        Alert.alert("Error", "Could not load client profile");
       } finally {
-        setLoadingClient(false)
+        setLoadingClient(false);
       }
-    }
-    fetchClient()
-  }, [customerId])
+    };
 
-    //Join the base url with the profile photo url
-  const fullImageUrl = client?.profilePhotoUrl
-  ? `${baseUrl}/${client.profilePhotoUrl
-      .replace(/\\/g, "/")            // ✅ Convert backslashes to slashes
-      .replace(/^\//, "")             // ✅ Remove leading slash
-      .trim()}`                       // ✅ Remove spaces
-  : null;
+    if (customerId) fetchClient();
+  }, [customerId]);
 
-console.log("Full Image URL:", fullImageUrl);
-
-  // Fetch treatments for the customer
+  /** ---------- Fetch Treatments ---------- **/
   useEffect(() => {
     if (!customerId) {
       setLoadingTreatments(false);
@@ -159,8 +170,9 @@ console.log("Full Image URL:", fullImageUrl);
     const fetchTreatments = async () => {
       setLoadingTreatments(true);
       try {
-        // Adjust endpoint if different in your backend
-        const res = await api.get<TreatmentItem[]>(`/Treatment/${customerId}`);
+        const res = await api.get<TreatmentItem[]>(
+          `/Treatment/${customerId}`
+        );
         setTreatments(res.data ?? []);
       } catch (err) {
         console.error("Failed to fetch treatments:", err);
@@ -172,162 +184,204 @@ console.log("Full Image URL:", fullImageUrl);
     fetchTreatments();
   }, [customerId]);
 
-  // Camera action
-  const openCamera = async (index: number) => {
-    try {
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (permission.status !== "granted") {
-        return Alert.alert(
-          "Permission required",
-          "Camera permission is required to take photos."
+  /** ---------- Fetch Old Before Photos ---------- **/
+  useEffect(() => {
+    if (!consultationAppointmentId) {
+      setLoadingOldPhotos(false);
+      return;
+    }
+
+    const fetchOldPhotos = async () => {
+      try {
+        const res = await api.get(
+          `/ConsultationPhoto/consultation/Before/${consultationAppointmentId}`
         );
-      }
 
-      const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        quality: 0.7,
-      });
+        const list = Array.isArray(res.data) ? res.data : [];
 
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const newPhotos = [...photos];
-        newPhotos[index] = result.assets[0].uri;
-        setPhotos(newPhotos);
+        const urls = list.map(
+          (p: any) =>
+            `${baseUrl}/${p.photoLocation
+              ?.replace(/\\/g, "/")
+              ?.replace(/^\//, "")}`
+        );
+
+        setOldBeforePhotos(urls);
+      } catch {
+        setOldBeforePhotos([]);
+      } finally {
+        setLoadingOldPhotos(false);
       }
-    } catch (err) {
-      console.error("Camera error:", err);
-      Alert.alert("Error", "Could not open camera.");
+    };
+
+    fetchOldPhotos();
+  }, [consultationAppointmentId]);
+
+  /** ---------- Medical Reports ---------- **/
+  const fetchMedicalReports = async () => {
+    setLoadingReports(true);
+    try {
+      const res = await api.get(
+        `/PatientHistory/PatientHistory/${customerId}`
+      );
+      setMedicalReports(
+        Array.isArray(res.data) ? res.data : [res.data]
+      );
+    } catch {
+      Alert.alert("Error", "Failed to load medical reports");
+    } finally {
+      setLoadingReports(false);
     }
   };
 
-  // Upload photos and navigate to StartTreatment
+  const openMedicalReports = async () => {
+    await fetchMedicalReports();
+    setShowMedicalReportsModal(true);
+  };
+
+  /** ---------- Camera ---------- **/
+  const openCamera = async (index: number) => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (permission.status !== "granted") {
+      Alert.alert("Permission required");
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      quality: 0.7,
+    });
+
+    if (!result.canceled) {
+      const updated = [...photos];
+      updated[index] = result.assets[0].uri;
+      setPhotos(updated);
+    }
+  };
+
+  /** ---------- Upload ---------- **/
   const handleProceedToTreatment = async () => {
-    if (!customerId || !consultationId) {
-      Alert.alert("Missing Data", "Customer ID or Consultation ID is missing.");
+    if (!customerId || !consultationAppointmentId) {
+      Alert.alert("Missing Data");
       return;
     }
 
     setUploading(true);
     try {
       const formData = new FormData();
-
-      // ✅ Append these EXACTLY as your backend expects
-      formData.append("CustomerId", String(customerId));
-      formData.append("ConsultationId", String(consultationId));
+      formData.append("customerId", String(customerId));
+      formData.append(
+        "consultationId",
+        String(consultationAppointmentId)
+      );
 
       photos.forEach((photo, idx) => {
         if (photo) {
-          const uri =
-            Platform.OS === "ios" ? photo.replace("file://", "") : photo;
-          formData.append("Photos", {
-            uri,
+          formData.append("photos", {
+            uri:
+              Platform.OS === "ios"
+                ? photo.replace("file://", "")
+                : photo,
             name: `photo_${idx + 1}.jpg`,
             type: "image/jpeg",
           } as any);
         }
       });
 
-      console.log("Uploading with:", {
-        CustomerId: customerId,
-        ConsultationId: consultationId,
-        PhotosCount: photos.filter(Boolean).length,
+      await api.post("/ConsultationPhoto/upload", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
       });
 
-      const res = await api.post("/ConsultationPhoto/upload", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
-
-      console.log("Upload response:", res.data);
-      Alert.alert("Success", "Photos uploaded successfully.");
-
+      Alert.alert("Success", "Photos uploaded successfully");
       navigation.navigate("Dashboard");
-    } catch (err: any) {
-      console.error(
-        "Upload failed:",
-        err?.response?.data ?? err?.message ?? err
-      );
-      Alert.alert(
-        "Upload failed",
-        "Failed to upload photos. Please try again."
-      );
+    } catch {
+      Alert.alert("Upload failed");
     } finally {
       setUploading(false);
     }
   };
 
-  // Quick helper UI for header content
+  const AutoClosePreview: React.FC<{ duration: number; onClose: () => void }> = ({
+  duration,
+  onClose,
+}) => {
+  useEffect(() => {
+    const timer = setTimeout(onClose, duration);
+    return () => clearTimeout(timer);
+  }, [duration, onClose]);
+
+  return null;
+};
+  /** ---------- Group Medical Reports by Date ---------- **/
+
+  const groupedReports: Record<string, any[]> = medicalReports.reduce(
+  (acc, report) => {
+    const date = report.prescribeDate || "Unknown";
+    if (!acc[date]) acc[date] = [];
+    acc[date].push(report);
+    return acc;
+  },
+  {} as Record<string, any[]>
+);
+
+  const fullImageUrl = client?.profilePhotoUrl
+    ? `${baseUrl}/${client.profilePhotoUrl
+        .replace(/\\/g, "/")
+        .replace(/^\//, "")}`
+    : null;
+
+  /** ---------- Header Render ---------- **/
   const renderHeaderContent = () => {
-    if (loadingClient) {
-      return <ActivityIndicator size="small" color="#000" />;
-    }
-    if (!client) {
-      return (
-        <Text className="text-xs text-red-500">No client data available</Text>
-      );
-    }
+    if (loadingClient) return <ActivityIndicator />;
 
     return (
       <>
-<Image
-  source={fullImageUrl ? { uri: fullImageUrl } : require('../assets/pp.jpg')}
-  className="w-16 h-16 rounded-full"
-/>
-        <View className="flex-col ml-2">
-          <Text className="text-black text-sm font-bold ">
-            {client.fullName}
+        <Image
+          source={
+            fullImageUrl
+              ? { uri: fullImageUrl }
+              : require("../assets/pp.jpg")
+          }
+          className="w-16 h-16 rounded-full"
+        />
+        <View className="ml-3">
+          <Text className="font-bold text-sm">{client?.fullName}</Text>
+          <Text className="text-xs">{client?.phone}</Text>
+          <Text className="text-xs">{client?.appointmentTime}</Text>
+          <Text className="text-xs">
+            Treatment: {client?.treatmentName}
           </Text>
-          <Text className="font-medium text-xs">{client.phone}</Text>
-          {client.appointmentTime && (
-            <Text className="font-medium text-xs">
-              {client.appointmentTime}
-            </Text>
-          )}
-          {client.treatmentName && (
-            <Text className="font-medium text-xs">
-              Treatment: {client.treatmentName}
-            </Text>
-          )}
         </View>
       </>
     );
   };
 
+  /** ---------- Render ---------- **/
   return (
     <View className="flex-1 bg-white">
       {/* Top Section */}
-      <View className="w-[95%] h-[15%] bg-secondary p-5 mt-[15%] mx-auto flex-row items-center rounded-xl space-x-4">
+      <View className="w-[95%] h-[15%] bg-secondary p-5 mt-[15%] mx-auto flex-row items-center rounded-xl">
         {renderHeaderContent()}
 
-        {/* Buttons on the right */}
         <View className="flex-col gap-y-2 ml-auto">
           <TouchableOpacity
-            className="bg-primary p-1 rounded-lg w-[130px] items-center justify-center"
-            onPress={() => {
-              navigation.navigate("Profile", { id: String(customerId) }); // ✅ Navigate to Profile
-            }}
+            className="bg-primary p-1 rounded-lg w-[130px] items-center"
+            onPress={() =>
+              navigation.navigate("Profile", {
+                id: String(customerId),
+              })
+            }
           >
-            <Text className="text-white text-xs font-bold text-center">
+            <Text className="text-white text-xs font-bold">
               View Profile
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            className="bg-primary p-1 rounded-lg w-[130px] items-center justify-center"
-            onPress={() =>
-              navigation.navigate("ConsentForm", { customerId, consultationId })
-            }
+            className="bg-primary p-1 rounded-lg w-[130px] items-center"
+            onPress={openMedicalReports}
           >
-            <Text className="text-white text-xs font-bold text-center">
-              View Consent Form
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            className="bg-primary p-1 rounded-lg w-[130px] items-center justify-center"
-            onPress={() => navigation.navigate("Appoinments", { customerId })}
-          >
-            <Text className="text-white text-xs font-bold text-center">
+            <Text className="text-white text-xs font-bold">
               View Medical Reports
             </Text>
           </TouchableOpacity>
@@ -336,68 +390,97 @@ console.log("Full Image URL:", fullImageUrl);
 
       {/* Body */}
       <ScrollView
-        className="flex-1 px-4 mt-4"
+        className="px-4 mt-4"
         contentContainerStyle={{ paddingBottom: 120 }}
       >
-        {/* Photo Grid */}
-        <View className="bg-[#F6F6F6] rounded-xl p-3 mb-4">
-          <Text className="font-bold text-sm mb-2">Before Photo</Text>
-          <View className="flex-row flex-wrap justify-between">
-            {photos.map((p, idx) => {
-              const [isBlurred, setIsBlurred] = useState(true);
+        {!loadingOldPhotos && oldBeforePhotos.length > 0 && (
+          <View className="bg-[#F6F6F6] rounded-xl p-3 mb-4">
+            <Text className="font-bold text-sm mb-2">
+              Previous Before Photos
+            </Text>
+            <View className="flex-row flex-wrap justify-start gap-2">
+              {oldBeforePhotos.map((uri, idx) => (
+  <PhotoBox
+    key={idx}
+    uri={uri}
+    onLongPress={() => {
+      setPreviewImage(uri);
+      setPreviewVisible(true);
+    }}
+  />
+))}
 
-              return (
-                <TouchableOpacity
-                  activeOpacity={1}
-                  key={idx}
-                  onPress={() => openCamera(idx)}
-                  onLongPress={() => {
-                    if (p) {
-                      setIsBlurred(false);
-                      setTimeout(() => setIsBlurred(true), 1500); // 👈 Show clear for 1.5s
-                    }
-                  }}
-                  className="w-[30%] h-24 bg-white mb-3 rounded-md items-center justify-center border border-gray-300 overflow-hidden"
-                >
-                  {p ? (
-                    <View className="w-full h-full">
-                      <Image
-                        source={{ uri: p }}
-                        className="w-full h-full rounded-md absolute"
-                        resizeMode="cover"
-                      />
-                      {isBlurred && (
-                        <BlurView
-                          intensity={40}
-                          tint="light"
-                          className="absolute top-0 left-0 right-0 bottom-0 rounded-md"
-                        />
-                      )}
-                    </View>
-                  ) : (
-                    <Camera size={20} color="#666" />
-                  )}
-                </TouchableOpacity>
-              );
-            })}
+            </View>
           </View>
-        </View>
+        )}
 
-        {/* Upload & Proceed */}
-        <View className="flex-1 items-center mt-6">
-          <TouchableOpacity
-            className="bg-primary px-[2%] rounded-full w-[60%] py-4 items-center"
-            onPress={handleProceedToTreatment}
-            disabled={uploading}
-          >
-            {uploading ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Text className="text-white font-bold">Upload Photos</Text>
-            )}
-          </TouchableOpacity>
-        </View>
+        {!loadingOldPhotos && oldBeforePhotos.length === 0 && (
+          <>
+            <View className="bg-[#F6F6F6] rounded-xl p-3 mb-4">
+              <Text className="font-bold text-sm mb-2">
+                Before Photo
+              </Text>
+              <View className="flex-row flex-wrap justify-start gap-2">
+                {photos.map((p, idx) => (
+                  <PhotoBox
+                    key={idx}
+                    uri={p}
+                    onPress={() => openCamera(idx)}
+                  />
+                ))}
+              </View>
+            </View>
+
+            <TouchableOpacity
+              className="bg-primary rounded-full py-4 items-center"
+              onPress={handleProceedToTreatment}
+              disabled={uploading}
+            >
+              {uploading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text className="text-white font-bold">
+                  Upload Photos
+                </Text>
+              )}
+            </TouchableOpacity>
+          </>
+        )}
       </ScrollView>
+
+<Modal
+  visible={previewVisible}
+  transparent
+  animationType="fade"
+  onRequestClose={() => setPreviewVisible(false)}
+>
+  <View className="flex-1 bg-black justify-center items-center">
+    
+    {/* Full-size Image */}
+    {previewImage && (
+      <Image
+        source={{ uri: previewImage }}
+        style={{ width: "100%", height: "100%" }}
+        resizeMode="contain"
+      />
+    )}
+
+    {/* Auto-close effect */}
+    {previewVisible && (
+      <AutoClosePreview duration={3000} onClose={() => setPreviewVisible(false)} />
+    )}
+
+    {/* Close button */}
+    <TouchableOpacity
+      onPress={() => setPreviewVisible(false)}
+      className="absolute top-12 right-6 bg-black/60 px-4 py-2 rounded-full"
+    >
+      <Text className="text-white font-bold">Close</Text>
+    </TouchableOpacity>
+
+  </View>
+</Modal>
+
 
       <Navbar />
     </View>

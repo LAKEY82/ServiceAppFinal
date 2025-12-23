@@ -113,10 +113,17 @@ const TreatmentAfterPhoto: React.FC = () => {
   const [loadingReports, setLoadingReports] = useState(false);
   const [uploadingBefore, setUploadingBefore] = useState(false);
   const [roleId, setRoleId] = useState<number | null>(null);
-const [loadingFetchedAfterPhotos, setLoadingFetchedAfterPhotos] = useState(false);
-const [afterBlurStates, setAfterBlurStates] = useState<boolean[]>(Array(6).fill(true));
-const [doctorName, setDoctorName] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null); //Large image preview
+  const [treatmentAppointmentId, setTreatmentAppointmentId] = useState<number | null>(null);
+  const [loadingFetchedAfterPhotos, setLoadingFetchedAfterPhotos] =
+    useState(false);
+  const [afterBlurStates, setAfterBlurStates] = useState<boolean[]>(
+    Array(6).fill(true)
+  );
+  const [fetchedAfterPhotos, setFetchedAfterPhotos] = useState<(string | null)[]>([]);
+// const [afterPhotos, setAfterPhotos] = useState<(string | null)[]>(Array(6).fill(null));
 
+  const [doctorName, setDoctorName] = useState<string | null>(null);
 
   const pickBeforePhoto = async (index: number) => {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
@@ -138,24 +145,60 @@ const [doctorName, setDoctorName] = useState<string | null>(null);
     }
   };
 
-  //GEt the Doctor Name from AsyncStorage
   useEffect(() => {
-  const loadDoctorName = async () => {
+  const loadTreatmentAppointmentId = async () => {
     try {
-      const storedDoctorName = await AsyncStorage.getItem("treatment_doctorName");
-      if (storedDoctorName) {
-        setDoctorName(storedDoctorName);
-        console.log("✅ Loaded doctorName from AsyncStorage:", storedDoctorName);
+      const storedId = await AsyncStorage.getItem("treatmentAppointmentId");
+
+      if (storedId) {
+        setTreatmentAppointmentId(Number(storedId));
+        console.log(
+          "✅ Loaded treatmentAppointmentId from AsyncStorage:",
+          storedId
+        );
       } else {
-        console.log("⚠️ No doctorName found in AsyncStorage");
+        console.log("⚠️ No treatmentAppointmentId found in AsyncStorage");
       }
     } catch (error) {
-      console.log("❌ Error reading doctorName:", error);
+      console.error(
+        "❌ Error loading treatmentAppointmentId from AsyncStorage:",
+        error
+      );
     }
   };
 
-  loadDoctorName();
+  loadTreatmentAppointmentId();
 }, []);
+
+useEffect(() => {
+  if (treatmentAppointmentId !== null) {
+    console.log("🎯 Active treatmentAppointmentId:", treatmentAppointmentId);
+  }
+}, [treatmentAppointmentId]);
+
+  //GEt the Doctor Name from AsyncStorage
+  useEffect(() => {
+    const loadDoctorName = async () => {
+      try {
+        const storedDoctorName = await AsyncStorage.getItem(
+          "treatment_doctorName"
+        );
+        if (storedDoctorName) {
+          setDoctorName(storedDoctorName);
+          console.log(
+            "✅ Loaded doctorName from AsyncStorage:",
+            storedDoctorName
+          );
+        } else {
+          console.log("⚠️ No doctorName found in AsyncStorage");
+        }
+      } catch (error) {
+        console.log("❌ Error reading doctorName:", error);
+      }
+    };
+
+    loadDoctorName();
+  }, []);
 
   const fetchMedicalReports = async () => {
     setLoadingReports(true);
@@ -210,51 +253,70 @@ const [doctorName, setDoctorName] = useState<string | null>(null);
 
   //Fetch the after photos takenn earlier
   useEffect(() => {
-  const fetchRoleId = async () => {
-    try {
-      const storedRole = await AsyncStorage.getItem("roleId");
-      if (storedRole) setRoleId(Number(storedRole));
-    } catch (err) {
-      console.error("Failed to get roleId from AsyncStorage:", err);
-    }
-  };
-  fetchRoleId();
-}, []);
+    const fetchRoleId = async () => {
+      try {
+        const storedRole = await AsyncStorage.getItem("roleId");
+        if (storedRole) setRoleId(Number(storedRole));
+      } catch (err) {
+        console.error("Failed to get roleId from AsyncStorage:", err);
+      }
+    };
+    fetchRoleId();
+  }, []);
 
-// 2️⃣ Fetch after photos once roleId and treatmentId are available
 useEffect(() => {
-  const fetchAfterPhotos = async () => {
-    if (!treatmentId || !(roleId === 26 || roleId === 28)) return;
+  if (!treatmentAppointmentId || roleId === null) return;
 
+  if (roleId !== 17 && roleId !== 19) return;
+
+  const fetchAfterPhotos = async () => {
     try {
       setLoadingFetchedAfterPhotos(true);
-      const res = await api.get(`/ConsultationPhoto/Treatment/After/${treatmentId}`);
+
+      const fullApiUrl = `/ConsultationPhoto/Treatment/After/${treatmentAppointmentId}`;
+
+      console.log("📡 Fetching After Photos - FULL API URL:", fullApiUrl);
+      console.log("📡 roleId:", roleId);
+      console.log("📡 treatmentAppointmentId:", treatmentAppointmentId);
+
+      const res = await api.get(fullApiUrl);
+
+      console.log("📸 After Photos API raw response:", res.data);
 
       const sortedData = Array.isArray(res.data)
-        ? [...res.data].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        ? [...res.data].sort(
+            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+          )
         : [];
 
-      const photoUrls = sortedData.map((p: any) =>
-        p.photoLocation
-          ? `${baseUrl}/${p.photoLocation.replace(/\\/g, "/").replace(/^\//, "")}`
-          : null
-      );
+      const photoUrls = sortedData
+        .map((p: any) =>
+          p.photoLocation
+            ? `${baseUrl}/${p.photoLocation
+                .replace(/\\/g, "/")
+                .replace(/^\//, "")}`
+            : null
+        )
+        .slice(0, 6);
 
-      const updated = [...afterPhotos];
-      photoUrls.forEach((url, idx) => {
-        if (idx < 6) updated[idx] = url;
-      });
+      console.log("📸 Final After Photo URLs:", photoUrls);
 
-      setAfterPhotos(updated);
+      setFetchedAfterPhotos(photoUrls);
     } catch (err: any) {
-      console.error("Error fetching after photos:", err.response?.data || err.message);
+      console.error(
+        "❌ Error fetching after photos:",
+        err.response?.data || err.message
+      );
     } finally {
       setLoadingFetchedAfterPhotos(false);
     }
   };
 
   fetchAfterPhotos();
-}, [roleId, treatmentId]);
+}, [roleId, treatmentAppointmentId]);
+
+
+
 
 
   //Join the base url with the profile photo url
@@ -285,7 +347,17 @@ useEffect(() => {
     fetchTreatments(); // ✅ Call the function here
   }, [consultationId]);
 
-  
+  //Re order from date
+  // Group medical reports by prescribeDate
+  const groupedReports = medicalReports.reduce((acc, report) => {
+    const date = report.prescribeDate || "Unknown";
+
+    if (!acc[date]) acc[date] = [];
+    acc[date].push(report);
+
+    return acc;
+  }, {});
+
   /** ---------- Timer logic ---------- **/
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | undefined;
@@ -388,6 +460,22 @@ useEffect(() => {
     }
   };
 
+  //View the image
+  const peekImage = (uri: string, idx: number) => {
+    setPreviewImage(uri); // show full-size modal
+    const updated = [...afterBlurStates];
+    updated[idx] = false; // remove blur on grid thumbnail
+    setAfterBlurStates(updated);
+
+    // existing timer – re-blur thumbnail after 1.5 s
+    setTimeout(() => {
+      const reset = [...afterBlurStates];
+      reset[idx] = true;
+      setAfterBlurStates(reset);
+      setPreviewImage(null); // hide full-size modal
+    }, 1500);
+  };
+
   /** ---------- Header content ---------- **/
   const renderHeaderContent = () => {
     if (loadingClient) return <ActivityIndicator size="small" color="#000" />;
@@ -408,11 +496,11 @@ useEffect(() => {
           <Text className="text-black text-sm font-bold">
             {client.fullName}
           </Text>
-           {doctorName && (
-    <Text className="font-medium text-xs text-gray-700">
-      Doctor: {doctorName}
-    </Text>
-  )}
+          {doctorName && (
+            <Text className="font-medium text-xs text-gray-700">
+              Dr. {doctorName}
+            </Text>
+          )}
           <Text className="font-medium text-xs">{client.phone}</Text>
           {client.appointmentTime && (
             <Text className="font-medium text-xs">
@@ -467,129 +555,114 @@ useEffect(() => {
         {/* Treatment Plan */}
         <View className="bg-[#F6F6F6] rounded-xl p-3 mb-4">
           <ScrollView horizontal showsHorizontalScrollIndicator={true}>
-            <View className="flex-col">
-            </View>
+            <View className="flex-col"></View>
           </ScrollView>
         </View>
         {/* After Photos */}
-{/* After Photos */}
-{/* After Photos Section */}
-<View className="bg-[#F6F6F6] rounded-xl p-3 mb-4">
-  <Text className="font-bold text-sm text-center mb-2">
-    {roleId === 26 || roleId === 28
-      ? "After Treatment Photos"
-      : "Upload Photos After Treatment"}
-  </Text>
+        {/* After Photos */}
+        {/* After Photos Section */}
+        <View className="bg-[#F6F6F6] rounded-xl p-3 mb-4">
+          <Text className="font-bold text-sm text-center mb-2">
+            {/* Doctor and the PA*/}
+            {roleId === 17 || roleId === 19
+              ? "After Treatment Photos"
+              : "Upload Photos After Treatment"}
+          </Text>
 
-  {roleId === 26 || roleId === 28 ? (
-    // VIEW MODE
-    <View>
-      {loadingFetchedAfterPhotos ? (
-        <ActivityIndicator size="small" color="#000" className="my-4" />
-      ) : afterPhotos.some(Boolean) ? (
-        <View className="flex-row flex-wrap justify-between mb-4">
-          {afterPhotos.map((uri, idx) => (
-            <TouchableOpacity
-              key={idx}
-              activeOpacity={1}
-              onLongPress={() => {
-                const updated = [...afterBlurStates];
-                updated[idx] = false;
-                setAfterBlurStates(updated);
-                setTimeout(() => {
-                  const reset = [...afterBlurStates];
-                  reset[idx] = true;
-                  setAfterBlurStates(reset);
-                }, 1500);
-              }}
-              className="w-[30%] h-24 bg-white mb-3 rounded-md items-center justify-center border border-gray-300 overflow-hidden"
-            >
-              {uri ? (
-                <View className="w-full h-full">
-                  <Image
-                    source={{ uri }}
-                    className="w-full h-full rounded-md absolute"
-                    resizeMode="cover"
-                  />
-                  {afterBlurStates[idx] && (
-                    <BlurView
-                      intensity={40}
-                      tint="light"
-                      className="absolute top-0 left-0 right-0 bottom-0 rounded-md"
-                    />
-                  )}
+          {roleId === 17 || roleId === 19 ? (
+            // VIEW MODE
+            <View>
+              {loadingFetchedAfterPhotos ? (
+                <ActivityIndicator size="small" color="#000" className="my-4" />
+              ) : fetchedAfterPhotos.some(Boolean) ? (
+                <View className="flex-row flex-wrap justify-start mb-4">
+                  {fetchedAfterPhotos.map((uri, idx) => (
+                    <TouchableOpacity
+                      key={idx}
+                      activeOpacity={1}
+                      onLongPress={() => uri && peekImage(uri, idx)}
+                      className="w-[30%] h-24 bg-white mb-3 rounded-md items-center justify-center border border-gray-300 overflow-hidden"
+                    >
+                      {uri ? (
+                        <View className="w-full h-full">
+                          <Image
+                            source={{ uri }}
+                            className="w-full h-full rounded-md absolute"
+                            resizeMode="cover"
+                          />
+                          {afterBlurStates[idx] &&
+                            (Platform.OS === "ios" ? (
+                              <BlurView
+                                intensity={125}
+                                tint="dark"
+                                className="absolute top-0 left-0 right-0 bottom-0 rounded-md"
+                              />
+                            ) : (
+                              <View className="absolute top-0 left-0 right-0 bottom-0 bg-black/30 rounded-md" />
+                            ))}
+                        </View>
+                      ) : (
+                        <Camera size={20} color="#666" />
+                      )}
+                    </TouchableOpacity>
+                  ))}
                 </View>
               ) : (
-                <Camera size={20} color="#666" />
+                <Text className="text-xs text-gray-500 text-center mt-4">
+                  No after photos available.
+                </Text>
               )}
-            </TouchableOpacity>
-          ))}
-        </View>
-      ) : (
-        <Text className="text-xs text-gray-500 text-center mt-4">
-          No after photos available.
-        </Text>
-      )}
-    </View>
-  ) : (
-    // UPLOAD MODE
-    <View>
-      <View className="flex-row flex-wrap justify-between mb-3">
-        {afterPhotos.map((uri, idx) => (
-          <TouchableOpacity
-            key={idx}
-            activeOpacity={1}
-            onPress={() => pickAfterPhoto(idx)}
-            onLongPress={() => {
-              const updated = [...afterBlurStates];
-              updated[idx] = false;
-              setAfterBlurStates(updated);
-              setTimeout(() => {
-                const reset = [...afterBlurStates];
-                reset[idx] = true;
-                setAfterBlurStates(reset);
-              }, 1500);
-            }}
-            className="w-[30%] h-24 bg-white mb-3 rounded-md items-center justify-center border border-gray-300 overflow-hidden"
-          >
-            {uri ? (
-              <View className="w-full h-full">
-                <Image
-                  source={{ uri }}
-                  className="w-full h-full rounded-md absolute"
-                  resizeMode="cover"
-                />
-                {afterBlurStates[idx] && (
-                  <BlurView
-                    intensity={40}
-                    tint="light"
-                    className="absolute top-0 left-0 right-0 bottom-0 rounded-md"
-                  />
-                )}
+            </View>
+          ) : (
+            // UPLOAD MODE
+            <View>
+              <View className="flex-row flex-wrap justify-between mb-3">
+                {afterPhotos.map((uri, idx) => (
+                  <TouchableOpacity
+                    key={idx}
+                    activeOpacity={1}
+                    onPress={() => pickAfterPhoto(idx)}
+                    onLongPress={() => uri && peekImage(uri, idx)}
+                    className="w-[30%] h-24 bg-white mb-3 rounded-md items-center justify-center border border-gray-300 overflow-hidden"
+                  >
+                    {uri ? (
+                      <View className="w-full h-full">
+                        <Image
+                          source={{ uri }}
+                          className="w-full h-full rounded-md absolute"
+                          resizeMode="cover"
+                        />
+                        {afterBlurStates[idx] &&
+                          (Platform.OS === "ios" ? (
+                            <BlurView
+                              intensity={125}
+                              tint="dark"
+                              className="absolute top-0 left-0 right-0 bottom-0 rounded-md"
+                            />
+                          ) : (
+                            <View className="absolute top-0 left-0 right-0 bottom-0 bg-black/30 rounded-md" />
+                          ))}
+                      </View>
+                    ) : (
+                      <Camera size={20} color="#666" />
+                    )}
+                  </TouchableOpacity>
+                ))}
               </View>
-            ) : (
-              <Camera size={20} color="#666" />
-            )}
-          </TouchableOpacity>
-        ))}
-      </View>
 
-      {/* Upload Button */}
-      <TouchableOpacity
-        className="bg-primary px-6 py-3 rounded-full items-center mt-2"
-        onPress={handleUploadAfterPhotos}
-        disabled={uploadingAfter}
-      >
-        <Text className="text-white font-bold">
-          {uploadingAfter ? "Uploading..." : "Upload Photos"}
-        </Text>
-      </TouchableOpacity>
-    </View>
-  )}
-</View>
-
-
-
+              {/* Upload Button */}
+              <TouchableOpacity
+                className="bg-primary px-6 py-3 rounded-full items-center mt-2"
+                onPress={handleUploadAfterPhotos}
+                disabled={uploadingAfter}
+              >
+                <Text className="text-white font-bold">
+                  {uploadingAfter ? "Uploading..." : "Upload Photos"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
 
         {/* ---------- Medical Reports Modal ---------- */}
         <Modal
@@ -599,43 +672,54 @@ useEffect(() => {
           onRequestClose={() => setShowMedicalReportsModal(false)}
         >
           <View className="flex-1 bg-black/40 justify-center items-center">
-            <View className="bg-white w-[90%] max-h-[80%] rounded-xl p-4">
-              <Text className="text-lg font-bold text-center mb-3">
-                Medical Reports
+            <View className="bg-white w-[90%] max-h-[85%] rounded-2xl p-5">
+              {/* Title */}
+              <Text className="text-2xl font-bold text-center mb-5">
+                Prescriptions
               </Text>
 
               {loadingReports ? (
                 <ActivityIndicator size="large" color="#000" />
               ) : medicalReports.length > 0 ? (
-                <ScrollView className="mt-2">
-                  {medicalReports.map((report, idx) => (
-                    <View
-                      key={`${report.consultationId}-${idx}`}
-                      className="border-b border-gray-300 pb-2 mb-2"
-                    >
-                      <Text className="text-sm font-semibold text-primary mb-1">
-                        {report.productName?.trim() || "Unknown Product"}
-                      </Text>
-                      <Text className="text-xs text-gray-700">
-                        <Text className="font-semibold">Code:</Text>{" "}
-                        {report.productCode?.trim() || "N/A"}
-                      </Text>
-                      <Text className="text-xs text-gray-700">
-                        <Text className="font-semibold">Prescribed:</Text>{" "}
-                        {report.prescribeDate || "N/A"}
-                      </Text>
-                      <Text className="text-xs text-gray-700">
-                        <Text className="font-semibold">How to Use:</Text>{" "}
-                        {report.howToUse || "N/A"}
-                      </Text>
-                      <Text className="text-xs text-gray-700">
-                        <Text className="font-semibold">Duration:</Text>{" "}
-                        {report.duration || "N/A"} days
-                      </Text>
-                      <Text className="text-xs text-gray-700">
-                        <Text className="font-semibold">Status:</Text>{" "}
-                        {report.entryStatus?.trim() || "N/A"}
-                      </Text>
+                <ScrollView showsVerticalScrollIndicator={false}>
+                  {Object.keys(groupedReports).map((date, index) => (
+                    <View key={index} className="mb-6">
+                      {/* DATE PILL */}
+                      <View className="bg-[#DFF6FF] self-start px-5 py-1 rounded-full mb-2">
+                        <Text className="text-[#2C73A7] font-semibold">
+                          {date}
+                        </Text>
+                      </View>
+
+                      {/* TABLE HEADER */}
+                      <View className="bg-gray-200 flex-row justify-between px-3 py-3 rounded-t-lg">
+                        <Text className="font-semibold w-[24%]">Product</Text>
+                        <Text className="font-semibold w-[24%]">
+                          How to use
+                        </Text>
+                        <Text className="font-semibold w-[20%]">Duration</Text>
+                        <Text className="font-semibold w-[16%]">Code</Text>
+                        <Text className="font-semibold w-[16%] text-right">
+                          Status
+                        </Text>
+                      </View>
+
+                      {/* TABLE ROWS — MULTIPLE IF SAME DATE */}
+                      {groupedReports[date].map((item: any, i: any) => (
+                        <View
+                          key={i}
+                          className={`bg-gray-100 flex-row justify-between gap-x-[5%] px-3 py-3 
+        ${i === groupedReports[date].length - 1 ? "rounded-b-lg" : ""}`}
+                        >
+                          <Text className="w-[24%]">{item.productName}</Text>
+                          <Text className="w-[24%]">{item.howToUse}</Text>
+                          <Text className="w-[20%]">{item.duration} days</Text>
+                          <Text className="w-[16%]">{item.productCode}</Text>
+                          <Text className="w-[16%] text-right">
+                            {item.entryStatus}
+                          </Text>
+                        </View>
+                      ))}
                     </View>
                   ))}
                 </ScrollView>
@@ -645,13 +729,29 @@ useEffect(() => {
                 </Text>
               )}
 
+              {/* CLOSE BUTTON */}
               <TouchableOpacity
-                className="bg-primary py-3 rounded-full mt-4 items-center"
+                className="bg-[#006D8F] py-3 rounded-full mt-6 items-center"
                 onPress={() => setShowMedicalReportsModal(false)}
               >
-                <Text className="text-white font-bold">Close</Text>
+                <Text className="text-white text-lg font-bold">Close</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </Modal>
+        {/* ----------------- Full-size preview modal ----------------- */}
+        <Modal
+          visible={!!previewImage}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setPreviewImage(null)}
+        >
+          <View className="flex-1 bg-black/90 justify-center items-center">
+            <Image
+              source={{ uri: previewImage! }}
+              className="w-[90%] h-[70%] rounded-lg"
+              resizeMode="contain"
+            />
           </View>
         </Modal>
       </ScrollView>

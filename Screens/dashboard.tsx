@@ -22,8 +22,9 @@ type RootStackParamList = {
     supervisorSmid: number | null;
     token: string;
     userId: number;
-    userName: string;
+    fullName: string;
     doctorId: string;
+    beforePhotoStatus?: string;
   };
   ConcentFill: {
     id: string;
@@ -33,9 +34,16 @@ type RootStackParamList = {
     initialStatus: string;
     TreatmentAppointmentId: number;
     consultationAppointmentId: number;
+    beforePhotoStatus?: string;
   };
   Profile: { id: string };
   StartTreatment: { customerId: string; consultationId: number };
+  Appoinments: {
+  customerId: string;
+  treatmentId: string;
+  fromPage: string;
+};
+
 };
 
 type DashboardScreenNavigationProp = NativeStackNavigationProp<
@@ -64,8 +72,8 @@ const Dashboard = () => {
   // Load user data
   useEffect(() => {
     const loadUserData = async () => {
-      await AsyncStorage.removeItem("treatmentAppointmentId");
-      await AsyncStorage.removeItem("consultationAppointmentId");
+      // await AsyncStorage.removeItem("treatmentAppointmentId");
+      // await AsyncStorage.removeItem("consultationAppointmentId");
 
       if (route.params) {
         setUserData(route.params);
@@ -92,113 +100,160 @@ const Dashboard = () => {
     loadUserData();
   }, [route.params, navigation]);
 
-  //Set default treatment for roles 29 and 30
-  useEffect(() => {
-  if (roleId === 29 || roleId === 30) {
-    setViewType("treatment");
+  //Set default treatment for roles 20 and 21 therapist and nurse
+//Set default view for specific roles
+useEffect(() => {
+  if (roleId === 20 || roleId === 21) {
+    setViewType("treatment"); // therapist/nurse → Treatment
+  } else if (roleId === 19) {
+    setViewType("consultation"); // supervisor → Consultation only
   }
 }, [roleId]);
 
-  // Fetch consultations + treatments independently
+
+// Fetch consultations + treatments independently
 useEffect(() => {
   const fetchData = async () => {
-    if (!userData) return;
+    // 🚫 Do not fetch until BOTH are ready
+    if (!userData || roleId === null) {
+      console.log("⏳ Waiting for userData and roleId...");
+      return;
+    }
 
     const numericRoleId = Number(roleId);
     const supervisorSmidNum = Number(userData.supervisorSmid);
     const branchEmployeeIdNum = Number(userData.branchEmployeeId);
 
     try {
-      // ✅ Fetch branchId from AsyncStorage
+      // ================== LOAD REQUIRED STORAGE VALUES ==================
       const storedBranchId = await AsyncStorage.getItem("branchId");
-      const storedEmployeeId = await AsyncStorage.getItem("employeeId");
-      console.log("🔹 Stored employeeId from AsyncStorage:", storedEmployeeId);
+      console.log("🔹 Stored branchId:", storedBranchId);
+
       const branchIdNum = storedBranchId ? Number(storedBranchId) : null;
-      console.log("🔹 Stored branchId from AsyncStorage:", branchIdNum);
 
       if (!branchIdNum) {
-        console.warn("🚫 No branchId found in AsyncStorage. Skipping treatment fetch.");
-        setTreatments([]);
+        console.warn("🚫 branchId missing — skipping fetch");
         return;
       }
 
-      // ----------------- CONSULTATION FETCH -----------------
-      try {
-        const consultationEndpoint = `/TreatmentAppointment/consultation/${branchEmployeeIdNum}`;
-        console.log("📡 Fetching Consultations From:", consultationEndpoint);
-        console.log("👤 Role ID:", numericRoleId, "| SupervisorSmid:", supervisorSmidNum, "| BranchEmployeeId:", branchEmployeeIdNum);
+      // ================== CONSULTATION FETCH ==================
+try {
+  let consultationEndpoint: string;
 
-        const consultationRes = await api.get(consultationEndpoint);
+  // ✅ Admin roles → fetch ALL consultations
+  if (numericRoleId === 8 || numericRoleId === 15) {
+    consultationEndpoint = "/TreatmentAppointment/consultation/All";
+  } else {
+    // 👤 Other roles → fetch by branch employee
+    consultationEndpoint = `/TreatmentAppointment/consultation/${branchEmployeeIdNum}`;
+  }
 
-        const consultationsWithId = (consultationRes.data || []).map((item: any) => ({
-          ...item,
-          consultationAppointmentId: item.id,
-        }));
+  console.log("📡 Fetching Consultations:", consultationEndpoint);
 
-        const filteredConsultations =
-          numericRoleId === 29 || numericRoleId === 30
-            ? consultationsWithId.filter(
-                (item: any) =>
-                  item.initialStatus === "filled" || item.initialStatus === true
-              )
-            : consultationsWithId;
+  const consultationRes = await api.get(consultationEndpoint);
 
-        setConsultations(filteredConsultations);
-        console.log("🟢 Consultations Fetched:", filteredConsultations.length);
-      } catch (err: any) {
-        console.warn("⚠️ Consultation fetch error:", err?.response?.data || err);
-        setConsultations([]);
+  const consultationsWithId = (consultationRes.data || []).map(
+    (item: any) => ({
+      ...item,
+      consultationAppointmentId: item.id,
+    })
+  );
+
+  const filteredConsultations = [17,19, 20, 21].includes(numericRoleId)
+    ? consultationsWithId.filter(
+        (item: any) =>
+          (item.initialStatus === true ||
+            item.initialStatus === "filled") &&
+          item.consentStatus?.toLowerCase() === "complete"
+      )
+    : consultationsWithId;
+
+  setConsultations(filteredConsultations);
+  console.log("🟢 Consultations loaded:", filteredConsultations.length);
+} catch (err: any) {
+  console.warn(
+    "⚠️ Consultation fetch failed:",
+    err?.response?.data || err
+  );
+  setConsultations([]);
+}
+
+      // ================== TREATMENT FETCH ==================
+      let treatmentEndpoint: string | null = null;
+
+      if (numericRoleId === 8 || numericRoleId === 15) {
+        // Admin
+        treatmentEndpoint = "/TreatmentAppointment/treatment/All";
+
+      } else if (numericRoleId === 17) {
+        // Branch Employee
+        treatmentEndpoint = `/TreatmentAppointment/treatment/${branchEmployeeIdNum}`;
+
+      } else if (numericRoleId === 21) {
+        // ✅ Therapist
+        treatmentEndpoint = `/TreatmentAppointment/treatment/therapist/${branchEmployeeIdNum}`;
+
+      } else if ([19, 20].includes(numericRoleId)) {
+        // Supervisor / Nurse
+        treatmentEndpoint = `/TreatmentAppointment/treatment/${supervisorSmidNum}`;
       }
 
-      // ----------------- TREATMENT FETCH -----------------
+      if (!treatmentEndpoint) {
+        console.warn("🚫 Treatment endpoint not resolved for role:", numericRoleId);
+        return;
+      }
+
       try {
-        let treatmentEndpoint = "";
-
-        if (numericRoleId === 17 || numericRoleId === 24) {
-          treatmentEndpoint = "/TreatmentAppointment/treatment/All";
-        } else if (numericRoleId === 26 ) {
-          treatmentEndpoint = `/TreatmentAppointment/treatment/${storedEmployeeId}`;
-        } else {
-          if (numericRoleId === 28 || numericRoleId === 30 || numericRoleId === 29) {
-            treatmentEndpoint = `/TreatmentAppointment/treatment/${supervisorSmidNum}`;
-          }
-        }
-
-        console.log("📡 Fetching Treatments From:", treatmentEndpoint);
+        console.log("📡 Fetching Treatments:", treatmentEndpoint);
 
         const treatmentRes = await api.get(treatmentEndpoint);
 
-        const treatmentsWithId = (treatmentRes.data || []).map((item: any) => ({
-          ...item,
-          treatmentAppointmentId: item.id,
-        }));
-
-        console.log("📊 Total treatments fetched:", treatmentsWithId.length);
-
-        // ✅ Filter treatments by stored branchId
-        const branchFilteredTreatments = treatmentsWithId.filter(
-          (treatment: any) => Number(treatment.branchId) === branchIdNum
+        const treatmentsWithId = (treatmentRes.data || []).map(
+          (item: any) => ({
+            ...item,
+            treatmentAppointmentId: item.id,
+          })
         );
-        console.log("📌 Treatments after branch filter:", branchFilteredTreatments.length);
 
-        // ✅ Filter for roles 29 & 30 to show only "filled" treatments
-        const filteredTreatments =
-          numericRoleId === 29 || numericRoleId === 30
-            ? branchFilteredTreatments.filter(
-                (item: any) =>
-                  item.initialStatus === "filled" || item.initialStatus === true
-              )
-            : branchFilteredTreatments;
+        console.log("📊 Treatments fetched:", treatmentsWithId.length);
 
-        console.log("✅ Treatments after role 29/30 filter:", filteredTreatments.length);
+        // ✅ Branch filter (SKIP for role 17 & 21)
+        const roleAwareTreatments =
+          numericRoleId === 17 || numericRoleId === 21
+            ? treatmentsWithId
+            : treatmentsWithId.filter(
+                (t: any) => Number(t.branchId) === branchIdNum
+              );
+
+        console.log(
+          "📌 After role-based branch filter:",
+          roleAwareTreatments.length
+        );
+
+        // ✅ Status / consent filter (SKIP for role 21)
+        // ✅ Status / consent filter for Nurse (20) & Therapist (21)
+const filteredTreatments =
+  [17,19,20, 21].includes(numericRoleId)
+    ? roleAwareTreatments.filter(
+        (item: any) =>
+          (item.initialStatus === true ||
+            String(item.initialStatus).toLowerCase() === "filled") &&
+          String(item.consentStatus).toLowerCase() === "complete"
+      )
+    : roleAwareTreatments;
+
 
         setTreatments(filteredTreatments);
+        console.log("🎯 FINAL TREATMENTS:", filteredTreatments.length);
       } catch (err: any) {
-        console.error("❌ Treatment fetch error:", err?.response?.data || err);
+        console.error(
+          "❌ Treatment fetch failed:",
+          err?.response?.data || err
+        );
         setTreatments([]);
       }
     } catch (err) {
-      console.error("❌ General fetch error:", err);
+      console.error("❌ Unexpected fetch error:", err);
     }
   };
 
@@ -274,8 +329,8 @@ useEffect(() => {
   };
 
   const saveDoctorName = async (type: string, name: string) => {
-  await AsyncStorage.setItem(`${type}_doctorName`, name);
-};
+    await AsyncStorage.setItem(`${type}_doctorName`, name);
+  };
   const getFullImageUrl = (path?: string) => {
     const BASE_URL = "https://chrimgtapp.xenosyslab.com/"; // update this
     if (!path) {
@@ -288,136 +343,175 @@ useEffect(() => {
     return fullUrl;
   };
   // 🟣 Handle card press
-  const handleCardPress = async (item: any) => {
-    // ✅ Determine type and save ID
-    if (item.treatmentAppointmentId) {
-      await saveAppointmentId("treatment", item.treatmentAppointmentId);
-      await saveDoctorName("treatment", item.doctorName);
-    } else if (item.consultationAppointmentId) {
-      await saveAppointmentId("consultation", item.consultationAppointmentId);
-    }
+const handleCardPress = async (item: any) => {
+  // 🟢 Role 20 & 21 → Treatment → beforePhotoStatus = taken → Go to Appointments only for therapist and Nuse
+  if (
+    viewType === "treatment" &&
+    (roleId === 20 || roleId === 21) &&
+    (item.beforePhotoStatus?.toLowerCase() === "taken" ||
+      item.photoStatus?.toLowerCase() === "taken")
+  ) {
+    // 🔵 Save the ID BEFORE navigating
+await saveAppointmentId("treatment", item.treatmentAppointmentId);
+    navigation.navigate("Appoinments", {
+      customerId: item.customerId?.toString() ?? "",
+      treatmentId: item.treatmentId?.toString() ?? "",
+      fromPage: "Dashboard",
+    });
+    return;
+  }
 
-    // ✅ Then continue your existing logic
-    const profilePic = item.profilePicture ?? item.ProfilePicture ?? null;
+  // Save IDs
+  if (item.treatmentAppointmentId) {
+    await saveAppointmentId("treatment", item.treatmentAppointmentId);
+    await saveDoctorName("treatment", item.doctorName);
+  } else if (item.consultationAppointmentId) {
+    await saveAppointmentId("consultation", item.consultationAppointmentId);
+  }
 
-    if (!profilePic) {
-      setSelectedCustomer(item);
-      setModalVisible(true);
-    } else {
-      navigateToConcentFill(item);
-    }
-  };
+  const profilePic = item.profilePicture ?? item.ProfilePicture ?? null;
+
+  if (!profilePic) {
+    setSelectedCustomer(item);
+    setModalVisible(true);
+  } else {
+    navigateToConcentFill(item);
+  }
+};
+
 
   const navigateToConcentFill = (item: any) => {
     navigation.navigate("ConcentFill", {
       id: item.customerId?.toString() ?? "",
-      consultationId: item.departmentId ?? 1,
+      consultationId: item.departmentId ?? 2,
       treatmentId: item.treatmentId ?? 24,
       appointmentType: item.appointmentType ?? "Consultation",
       initialStatus: item.initialStatus,
       TreatmentAppointmentId: item.treatmentAppointmentId,
+      beforePhotoStatus:item.beforePhotoStatus,
       consultationAppointmentId: item.consultationAppointmentId, // ✅ pass new key
     });
   };
 
   //Treatment or Consultation card values render definition
-  const renderCard = ({ item }: { item: any }) => {
-    const hasInitialForm =
-      item.initialStatus === true || item.initialStatus === "filled";
-    const hasBeforePhoto =
-      item.photoStatus?.toLowerCase() === "taken" ||
-      item.beforePhotoStatus === "Taken";
-    const hasAfterPhoto = item.afterPhotoStatus?.toLowerCase() === "taken";
-    const hasTreatmentForm =
-      item.isConcentFormFilled === true || item.treatmentStatus === "Completed";
+const renderCard = ({ item }: { item: any }) => {
+  // 🔹 Initial
+const hasInitialForm =
+  item.initialStatus === true ||
+  String(item.initialStatus).toLowerCase() === "filled";
+  // 🔹 Daily (Consent complete – case insensitive)
+const hasDailyForm =
+  String(item.consentStatus).toLowerCase() === "complete";
 
-    const badgeStyle = getBadgeStyle(item.customerType);
+// 🔹 Photos (any photo taken)
+const hasPhotos =
+  String(item.photoStatus).toLowerCase() === "taken" ||
+  String(item.beforePhotoStatus).toLowerCase() === "taken" ||
+  String(item.afterPhotoStatus).toLowerCase() === "taken";
 
-    return (
-      <TouchableOpacity
-        className="bg-secondary rounded-2xl p-4 m-1"
-        onPress={() => handleCardPress(item)}
-        style={{
-          width: "48%",
-          ...Platform.select({
-            ios: {
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.25,
-              shadowRadius: 3.84,
-            },
-            android: { elevation: 3 },
-          }),
-        }}
-      >
-        <View className="items-center">
-          <Image
-            source={{ uri: getFullImageUrl(item.profilePicture) }} // ✅ Fixed property name
-            className="w-16 h-16 rounded-full mb-2"
-          />
-          {badgeStyle && (
-            <View
-              className="absolute top-2 right-2 px-2 py-1 rounded-full"
-              style={badgeStyle}
-            >
-              <Text className="text-white text-xs font-bold uppercase">
-                {item.customerType}
-              </Text>
-            </View>
-          )}
-          <Text className="text-base font-bold text-center">
-            {item.customerFName ?? "Unknown"} {item.customerLName ?? ""}
-          </Text>
-          <Text className="text-gray-700 text-center">
-            {item.appointmentType ?? viewType}
-          </Text>
-           <Text className="text-gray-700 text-center">
-            {item.doctorName ?? viewType}
-          </Text>
-          <TouchableOpacity
-            onPress={() =>
-              navigation.navigate("Profile", {
-                id: item.customerId?.toString() ?? "",
-              })
-            }
-            className="bg-primary px-3 py-2 rounded-lg mt-2"
+  const hasBeforePhoto =
+    item.photoStatus?.toLowerCase() === "taken" ||
+    item.beforePhotoStatus === "taken";
+  const hasAfterPhoto = item.afterPhotoStatus?.toLowerCase() === "taken";
+
+  // ✅ Fill Daily if consentStatus is complete
+  const hasTreatmentForm =
+    item.consentStatus?.toLowerCase() === "complete";
+
+  const badgeStyle = getBadgeStyle(item.customerType);
+
+  return (
+    <TouchableOpacity
+      className="bg-secondary rounded-2xl p-4 m-1"
+      onPress={() => handleCardPress(item)}
+      style={{
+        width: "48%",
+        ...Platform.select({
+          ios: {
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.25,
+            shadowRadius: 3.84,
+          },
+          android: { elevation: 3 },
+        }),
+      }}
+    >
+      <View className="items-center">
+        <Image
+          source={{ uri: getFullImageUrl(item.profilePicture) }}
+          className="w-16 h-16 rounded-full mb-2"
+        />
+        {badgeStyle && (
+          <View
+            className="absolute top-2 right-2 px-2 py-1 rounded-full"
+            style={badgeStyle}
           >
-            <Text className="text-white text-sm">View Profile</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Progress bar */}
-        <View className="mt-3">
-          <View className="flex-row justify-between mt-2">
-            {[0, 1, 2].map((level) => {
-              let filled = false;
-              if (level === 0) filled = hasInitialForm;
-              else if (level === 1) filled = hasBeforePhoto || hasAfterPhoto;
-              else if (level === 2) filled = hasTreatmentForm;
-
-              return (
-                <View
-                  key={level}
-                  style={{
-                    flex: 1,
-                    height: 6,
-                    marginHorizontal: 2,
-                    borderRadius: 10,
-                    backgroundColor: filled ? "#00853E" : "#E0E0E0",
-                  }}
-                />
-              );
-            })}
+            <Text className="text-white text-xs font-bold uppercase">
+              {item.customerType}
+            </Text>
           </View>
-          <View className="flex-row justify-between mt-1">
-            <Text className="text-[10px] text-gray-600">Initial</Text>
-            <Text className="text-[10px] text-gray-600">Photos</Text>
-            <Text className="text-[10px] text-gray-600">Daily</Text>
-          </View>
+        )}
+        <Text className="text-base font-bold text-center">
+          {item.customerFName ?? "Unknown"} {item.customerLName ?? ""}
+        </Text>
+        <Text className="text-gray-700 text-center">
+          {item.appointmentType ?? viewType}
+        </Text>
+        <Text
+          className="text-gray-700 text-center"
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
+          {/* Dr. {item.doctorName ?? viewType} */}
+        </Text>
+
+        <TouchableOpacity
+          onPress={() =>
+            navigation.navigate("Profile", {
+              id: item.customerId?.toString() ?? "",
+            })
+          }
+          className="bg-primary px-3 py-2 rounded-lg mt-2"
+        >
+          <Text className="text-white text-sm">View Profile</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Progress bar */}
+      <View className="mt-3">
+        <View className="flex-row justify-between mt-2">
+          {[0, 1, 2].map((level) => {
+  let filled = false;
+
+  if (level === 0) filled = hasInitialForm;   // Initial
+  else if (level === 1) filled = hasDailyForm; // Daily
+  else if (level === 2) filled = hasPhotos;    // Photos
+
+            return (
+              <View
+                key={level}
+                style={{
+                  flex: 1,
+                  height: 6,
+                  marginHorizontal: 2,
+                  borderRadius: 10,
+                  backgroundColor: filled ? "#00853E" : "#E0E0E0",
+                }}
+              />
+            );
+          })}
         </View>
-      </TouchableOpacity>
-    );
-  };
+        <View className="flex-row justify-between mt-1">
+          <Text className="text-[10px] text-gray-600">Initial</Text>
+          <Text className="text-[10px] text-gray-600">Daily</Text>
+          <Text className="text-[10px] text-gray-600">Photos</Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+};
+
 
   if (!userData) {
     return (
@@ -476,57 +570,64 @@ useEffect(() => {
         <View className="flex-row justify-between items-center mb-4">
           <Text className="text-lg font-bold">
             Hi,{" "}
-            {userData?.userName?.length > 10
-              ? `${userData.userName.substring(0, 10)}...`
-              : userData?.userName}{" "}
+            {userData?.fullName?.length > 10
+              ? `${userData.fullName.substring(0, 10)}...`
+              : userData?.fullName}{" "}
             👋
           </Text>
 
-<View className="flex-row bg-[#E0F7FF] rounded-full p-1 w-[220px] h-[46px]">
-  {/* 🟣 Consultation toggle — disabled for Role 29 & 30 */}
-  <TouchableOpacity
-    onPress={() => {
-      if (roleId !== 29 && roleId !== 30) {
-        setViewType("consultation");
-      }
+          <View className="flex-row bg-[#E0F7FF] rounded-full p-1 w-[220px] h-[46px]">
+            {/* 🟣 Consultation toggle — disabled for Role 20 & 21 for therapist and nurse */}
+            {/* Consultation toggle */}
+<TouchableOpacity
+  onPress={() => {
+    // ✅ Disable for role 20, 21 → locked to Treatment
+    // ✅ Disable for role 19 → locked to Consultation
+    if (roleId !== 20 && roleId !== 21 && roleId !== 19) {
+      setViewType("consultation");
+    }
+  }}
+  disabled={roleId === 20 || roleId === 21 || roleId === 19}
+  activeOpacity={roleId === 20 || roleId === 21 || roleId === 19 ? 1 : 0.7}
+  className={`flex-1 justify-center items-center rounded-full ${
+    viewType === "consultation" ? "bg-[#0077A8]" : ""
+  } ${roleId === 20 || roleId === 21 || roleId === 19 ? "opacity-50" : ""}`}
+>
+  <Text
+    style={{
+      color: viewType === "consultation" ? "#DBF7FF" : "#007697",
+      fontWeight: "700",
+      fontSize: 14,
     }}
-    disabled={roleId === 29 || roleId === 30}
-    activeOpacity={roleId === 29 || roleId === 30 ? 1 : 0.7}
-    className={`flex-1 justify-center items-center rounded-full ${
-      viewType === "consultation" ? "bg-[#0077A8]" : ""
-    } ${roleId === 29 || roleId === 30 ? "opacity-50" : ""}`}
   >
-    <Text
-      style={{
-        color: viewType === "consultation" ? "#DBF7FF" : "#007697",
-        fontWeight: "700",
-        fontSize: 14,
-      }}
-    >
-      Consultation
-    </Text>
-  </TouchableOpacity>
+    Consultation
+  </Text>
+</TouchableOpacity>
 
-  {/* 🟢 Treatment toggle — always enabled */}
-  <TouchableOpacity
-    onPress={() => setViewType("treatment")}
-    activeOpacity={0.7}
-    className={`flex-1 justify-center items-center rounded-full ${
-      viewType === "treatment" ? "bg-[#0077A8]" : ""
-    }`}
+{/* Treatment toggle */}
+{/* Treatment toggle */}
+<TouchableOpacity
+  onPress={() => {
+    if (roleId !== 19) setViewType("treatment"); // role 19 cannot access treatment
+  }}
+  activeOpacity={roleId === 19 ? 1 : 0.7}
+  className={`flex-1 justify-center items-center rounded-full ${
+    viewType === "treatment" ? "bg-[#0077A8]" : ""
+  } ${roleId === 19 ? "opacity-50" : ""}`} // visually disabled
+>
+  <Text
+    style={{
+      color: viewType === "treatment" ? "#fff" : "#007697",
+      fontWeight: "700",
+      fontSize: 14,
+    }}
   >
-    <Text
-      style={{
-        color: viewType === "treatment" ? "#fff" : "#007697",
-        fontWeight: "700",
-        fontSize: 14,
-      }}
-    >
-      Treatment
-    </Text>
-  </TouchableOpacity>
-</View>
+    Treatment
+  </Text>
+</TouchableOpacity>
 
+
+          </View>
         </View>
 
         {/* Search */}

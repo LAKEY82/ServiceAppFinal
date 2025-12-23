@@ -15,6 +15,7 @@ type RootStackParamList = {
     supervisorSmid: number | null;
     token: string;
     userId: number;
+    fullName: string;
     userName: string;
   };
 };
@@ -50,13 +51,15 @@ const handleLogin = async () => {
     if (response.data && response.data.token) {
       console.log("Login success:", response.data);
 
-      const { branchEmployeeId,branchId,employeeId, roleId, supervisorSmid, token, userId, userName } =
+      const { branchEmployeeId,branchId,employeeId,fullName, roleId, token, userId, userName } =
         response.data;
 
+        // ✅ Assign branchEmployeeId as supervisorSmid
+const supervisorSmid = branchEmployeeId;
       // ✅ Save full user object
       await AsyncStorage.setItem(
         "userData",
-        JSON.stringify({ branchEmployeeId,branchId, roleId, supervisorSmid, token, userId, userName })
+        JSON.stringify({ branchEmployeeId,branchId,employeeId,fullName, roleId, supervisorSmid, token, userId, userName })
       );
 
       // ✅ Save roleId separately
@@ -71,6 +74,7 @@ const handleLogin = async () => {
         branchEmployeeId,
         roleId,
         supervisorSmid,
+        fullName,
         token,
         userId,
         userName,
