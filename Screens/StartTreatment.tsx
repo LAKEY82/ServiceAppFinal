@@ -392,7 +392,7 @@ const StartTreatment: React.FC = () => {
   }, [roleId, savedTreatmentAppointmentId]);
 
   // 🖼️ Safely build the correct image URL
-  const baseUrl = "https://chrimgtapp.xenosyslab.com";
+  const baseUrl = api.defaults.baseURL?.replace("/api", "");
   let finalUrl = null;
 
   /** ---------- Fetch client ---------- **/

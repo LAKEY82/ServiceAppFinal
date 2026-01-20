@@ -179,7 +179,7 @@ useEffect(() => {
           setLoading(false);
           return;
         }
-        endpoint = `/ConcentForm/concent/treatment/${25}`;
+        endpoint = `/ConcentForm/concent/treatment/${48}`;
       } 
       else {
         setError("Invalid appointment type.");
@@ -253,7 +253,58 @@ const compressImage = async (uri: string) => {
   }
 };
 
+// Consent Form submission handlers
+const submitAnswers = async () => {
+  try {
+    if (!form) {
+      Alert.alert("Error", "Form not loaded.");
+      return;
+    }
 
+    // 🛡️ Guard: Only allow if AppointmentType is Consultation
+    // and both ID fields are populated
+    if (appointmentType !== "Consultation") {
+      console.log("Blocking submission: Not a Consultation type.");
+      return; 
+    }
+
+    if (!consultationId || !consultationAppointmentId) {
+      Alert.alert("Missing Information", "Cannot submit: Consultation IDs are missing.");
+      console.error("ID Validation Failed:", { consultationId, consultationAppointmentId });
+      return;
+    }
+
+    // Proceed with submission logic
+    const roleId = await AsyncStorage.getItem("roleId");
+    const userId = await AsyncStorage.getItem("userId");
+    const enteredBy = Number(userId || roleId || 0);
+
+    const payload = Object.entries(answers).map(([questionId, value]) => ({
+      customerId: id,
+      formId: form.id,
+      consultationAppoinmentId: consultationAppointmentId, // Using the validated ID
+      questionId: Number(questionId),
+      answers: Array.isArray(value) ? value.join(", ") : String(value),
+      enteredBy,
+    }));
+
+    console.log("📤 Submitting Consultation payload:", payload);
+
+    const response = await api.post(
+      "/ConcentForm/upload/ConcentAnswers",
+      payload
+    );
+
+    console.log("✅ Consultation answers submitted:", response.data);
+    Alert.alert("Success", "Consultation form submitted successfully!");
+
+  } catch (error: any) {
+    console.error("❌ Error submitting consultation answers:", error);
+    Alert.alert("Error", "Failed to submit answers");
+  }
+};
+
+//Text Change handler
   const handleTextChange = (questionId: number, text: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: text }));
   };
@@ -570,15 +621,29 @@ const uploadPhotos = async () => {
   return (
     <View className="flex-1 bg-white">
       <ScrollView className="flex-1 px-5 mt-10">
-        <View className="flex-row items-center justify-between mb-6 mt-[10%]">
-          <Text className="text-xl font-bold">{form?.formName}</Text>
-          <TouchableOpacity
-            onPress={() => setViewFormModalVisible(true)}
-            className="bg-primary px-4 py-2 rounded-lg"
-          >
-            <Text className="text-white font-semibold">View Forms</Text>
-          </TouchableOpacity>
-        </View>
+       <View className="flex-row items-center justify-between mb-6 mt-[10%]">
+  {/* Title on the Left */}
+  <Text className="text-xl font-bold">{form?.formName}</Text>
+
+  {/* Button Group on the Right */}
+  <View className="flex-row items-center gap-2"> 
+    {/* Download Button */}
+    <TouchableOpacity
+      onPress={() => handleDownloadPDF()} // Replace with your download function
+      className="bg-gray-200 px-4 py-2 rounded-lg"
+    >
+      <Text className="text-black font-semibold">Download</Text>
+    </TouchableOpacity>
+
+    {/* View Forms Button */}
+    <TouchableOpacity
+      onPress={() => setViewFormModalVisible(true)}
+      className="bg-primary px-4 py-2 rounded-lg"
+    >
+      <Text className="text-white font-semibold">View Forms</Text>
+    </TouchableOpacity>
+  </View>
+</View>
 
         {form?.questions
           .filter((q) => q.parentQuestionId === null)
@@ -707,14 +772,15 @@ const uploadPhotos = async () => {
           ))}
 
         <View className="flex-row justify-between mb-10 mt-6">
-          <TouchableOpacity
-            onPress={handleDownloadPDF}
-            className="flex-1 bg-gray-200 py-4 rounded-xl mr-2"
-          >
-            <Text className="text-center font-semibold text-gray-800 text-lg">
-              Download PDF
-            </Text>
-          </TouchableOpacity>
+<TouchableOpacity
+  onPress={submitAnswers}
+  className="flex-1 bg-gray-200 py-4 rounded-xl mr-2"
+>
+  <Text className="text-center font-semibold text-gray-800 text-lg">
+    Submit Form
+  </Text>
+</TouchableOpacity>
+
 
           <TouchableOpacity
   onPress={async () => {

@@ -51,7 +51,7 @@ type StartConsultationRouteProp = RouteProp<
   "Startconsultation"
 >;
 
-const baseUrl = "https://chrimgtapp.xenosyslab.com";
+const baseUrl = api.defaults.baseURL?.replace("/api", "");
 
 /** ---------- Photo Box ---------- **/
 const PhotoBox = ({
