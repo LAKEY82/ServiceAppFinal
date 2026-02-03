@@ -1,4 +1,4 @@
-import {View,Text,TextInput,TouchableOpacity,ScrollView,Alert,ActivityIndicator,Modal,Image,Platform} from "react-native";
+import {View,Text,TextInput,TouchableOpacity,ScrollView,Alert,ActivityIndicator,Modal,Image,Platform,} from "react-native";
 import React, { useState, useEffect } from "react";
 import Navbar from "../components/Navbar";
 import * as Print from "expo-print";
@@ -7,7 +7,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import api from "../API/api"; // your axios instance
 import { Camera, Image as ImageIcon, X } from "lucide-react-native";
-import { Picker } from '@react-native-picker/picker';
+import { Picker } from "@react-native-picker/picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import SelectDropdown from "react-native-select-dropdown";
 import CustomDropdown from "../components/CustomDropdown ";
@@ -19,10 +19,10 @@ type RootStackParamList = {
     consultationId: number;
     appointmentType: string;
     treatmentId?: number; // 👈 added for treatment support
-    initialStatus:string;
-    treatmentAppointmentId:number;
-    consultationAppointmentId:number;
-    beforePhotoStatus?:string;
+    initialStatus: string;
+    treatmentAppointmentId: number;
+    consultationAppointmentId: number;
+    beforePhotoStatus?: string;
   };
   Startconsultation: { formData: any };
 };
@@ -53,35 +53,55 @@ interface ConsentForm {
 const ConcentFill = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<ConcentFillRouteProp>();
-  const { id, consultationId,initialStatus,treatmentAppointmentId,consultationAppointmentId,beforePhotoStatus, appointmentType, treatmentId } = route.params;
+  const {
+    id,
+    consultationId,
+    initialStatus,
+    treatmentAppointmentId,
+    consultationAppointmentId,
+    beforePhotoStatus,
+    appointmentType,
+    treatmentId,
+  } = route.params;
 
   console.log("The Params:", route.params);
   //Logg the Async storages
   useEffect(() => {
-  const loadSavedIds = async () => {
-    try {
-      const savedTreatmentId = await AsyncStorage.getItem("treatmentAppointmentId");
-      const savedConsultationId = await AsyncStorage.getItem("consultationAppointmentId");
-      const roleId = await AsyncStorage.getItem("roleId");
-      console.log("The Role ID is:",roleId);
-      console.log("✅ Saved TreatmentAppointmentId:", savedTreatmentId); 
-      console.log("✅ Saved ConsultationAppointmentId:", savedConsultationId);
-      console.log("✅ Params → TreatmentAppointmentId:", treatmentAppointmentId);
-      console.log("✅ Params → ConsultationAppointmentId:", consultationAppointmentId);
-      console.log("✅ Params → AppointmentType:", appointmentType);
-    } catch (error) {
-      console.log("⚠️ Error reading AsyncStorage:", error);
-    }
-  };
+    const loadSavedIds = async () => {
+      try {
+        const savedTreatmentId = await AsyncStorage.getItem(
+          "treatmentAppointmentId",
+        );
+        const savedConsultationId = await AsyncStorage.getItem(
+          "consultationAppointmentId",
+        );
+        const roleId = await AsyncStorage.getItem("roleId");
+        console.log("The Role ID is:", roleId);
+        console.log("✅ Saved TreatmentAppointmentId:", savedTreatmentId);
+        console.log("✅ Saved ConsultationAppointmentId:", savedConsultationId);
+        console.log(
+          "✅ Params → TreatmentAppointmentId:",
+          treatmentAppointmentId,
+        );
+        console.log(
+          "✅ Params → ConsultationAppointmentId:",
+          consultationAppointmentId,
+        );
+        console.log("✅ Params → AppointmentType:", appointmentType);
+      } catch (error) {
+        console.log("⚠️ Error reading AsyncStorage:", error);
+      }
+    };
 
-  loadSavedIds();
-}, []);
-
+    loadSavedIds();
+  }, []);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<ConsentForm | null>(null);
-  const [answers, setAnswers] = useState<{ [questionId: number]: string | string[] }>({});
+  const [answers, setAnswers] = useState<{
+    [questionId: number]: string | string[];
+  }>({});
   const [viewFormModalVisible, setViewFormModalVisible] = useState(false);
   const [successModalVisible, setSuccessModalVisible] = useState(false);
   //The Modal and Image Upload States
@@ -93,18 +113,20 @@ const ConcentFill = () => {
     { date: string; pdfLocations: string[] }[]
   >([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-
   // Dropdown state for dates
   const [dateOpen, setDateOpen] = useState(false);
-  const [dateItems, setDateItems] = useState<Array<{label:string;value:string}>>([]);
+  const [dateItems, setDateItems] = useState<
+    Array<{ label: string; value: string }>
+  >([]);
   const [formImages, setFormImages] = useState<string[]>([]);
   const [loadingForms, setLoadingForms] = useState(false);
   const [formValue, setFormValue] = useState<string | null>("Consultation"); // default
   const [formOpen, setFormOpen] = useState(false);
   const [formItems, setFormItems] = useState([
-    { label: 'Consultation', value: 'Consultation' },
-    { label: 'Treatment', value: 'Treatment' },
+    { label: "Consultation", value: "Consultation" },
+    { label: "Treatment", value: "Treatment" },
   ]);
+  const [roleId, setRoleId] = useState<number | null>(null);
   const [formType, setFormType] = useState<string>("Consultation");
   // Sync date items whenever availableForms changes
   useEffect(() => {
@@ -154,183 +176,237 @@ const ConcentFill = () => {
   useEffect(() => {
     if (viewFormModalVisible) {
       // ensure dropdown default value is used to fetch
-      fetchFilledForms(formValue || 'Consultation');
+      fetchFilledForms(formValue || "Consultation");
     }
   }, [viewFormModalVisible]);
 
   //get the consent form based on appointment type and initial status
-useEffect(() => {
-  const fetchConsentForm = async () => {
-    try {
-      setLoading(true);
-      let endpoint = "";
+  useEffect(() => {
+    const fetchConsentForm = async () => {
+      try {
+        setLoading(true);
+        let endpoint = "";
 
-      // 🟢 If initialStatus is "notfilled", use InitialConcent API
-      if (initialStatus === "notfilled") {
-        endpoint = `/ConcentForm/concent/InitialConcent`;
-      } 
-      // 🟡 Otherwise, use the appropriate endpoint
-      else if (appointmentType === "Consultation") {
-        endpoint = `/ConcentForm/concent/consultation/${2}`;
-      } 
-      else if (appointmentType === "Treatment") {
-        if (!treatmentId) {
-          setError("Treatment ID is missing for treatment consent form.");
+        // 🟢 If initialStatus is "notfilled", use InitialConcent API
+        if (initialStatus === "notfilled") {
+          endpoint = `/ConcentForm/concent/InitialConcent`;
+        }
+        // 🟡 Otherwise, use the appropriate endpoint
+        else if (appointmentType === "Consultation") {
+          endpoint = `/ConcentForm/concent/consultation/${2}`;
+        } else if (appointmentType === "Treatment") {
+          if (!treatmentId) {
+            setError("Treatment ID is missing for treatment consent form.");
+            setLoading(false);
+            return;
+          }
+          endpoint = `/ConcentForm/concent/treatment/${48}`;
+        } else {
+          setError("Invalid appointment type.");
           setLoading(false);
           return;
         }
-        endpoint = `/ConcentForm/concent/treatment/${48}`;
-      } 
-      else {
-        setError("Invalid appointment type.");
-        setLoading(false);
-        return;
-      }
 
-      console.log("📡 Fetching consent form from:", endpoint);
+        console.log("📡 Fetching consent form from:", endpoint);
 
-      // 🧠 Fetch data via your configured base URL
-      const response = await api.get(endpoint, {
-        params:
-          initialStatus === "notfilled"
-            ? { customerId: id, consultationId: consultationAppointmentId || 0 }
-            : {},
-      });
+        // 🧠 Fetch data via your configured base URL
+        const response = await api.get(endpoint, {
+          params:
+            initialStatus === "notfilled"
+              ? {
+                  customerId: id,
+                  consultationId: consultationAppointmentId || 0,
+                }
+              : {},
+        });
 
-      const data = response.data;
-      console.log("🟢 Consent form API response:", JSON.stringify(data, null, 2));
+        const data = response.data;
+        console.log(
+          "🟢 Consent form API response:",
+          JSON.stringify(data, null, 2),
+        );
 
-      let formData: ConsentForm | null = null;
+        let formData: ConsentForm | null = null;
 
-      // ✅ Handle three cases:
-      // 1. Array of questions
-      // 2. Array of form objects
-      // 3. Single form object
-      if (Array.isArray(data)) {
-        if (data.length > 0 && data[0].questionText) {
-          // Case 1: response is directly a list of questions
-          formData  = { id: 0, formName: "Auto Form",  consultationId: consultationId || 0,  questions: data };
-        } else {
-          // Case 2: response is an array of form objects
-          formData = data[0];
+        // ✅ Handle three cases:
+        // 1. Array of questions
+        // 2. Array of form objects
+        // 3. Single form object
+        if (Array.isArray(data)) {
+          if (data.length > 0 && data[0].questionText) {
+            // Case 1: response is directly a list of questions
+            formData = {
+              id: 0,
+              formName: "Auto Form",
+              consultationId: consultationId || 0,
+              questions: data,
+            };
+          } else {
+            // Case 2: response is an array of form objects
+            formData = data[0];
+          }
+        } else if (typeof data === "object" && data !== null) {
+          // Case 3: single form object
+          formData = data;
         }
-      } else if (typeof data === "object" && data !== null) {
-        // Case 3: single form object
-        formData = data;
-      }
 
-      if (formData && Array.isArray(formData.questions)) {
-        setForm(formData);
-      } else {
-        setError("No consent form questions found.");
+        if (formData && Array.isArray(formData.questions)) {
+          setForm(formData);
+        } else {
+          setError("No consent form questions found.");
+        }
+      } catch (err: any) {
+        console.error("❌ Error fetching consent form:", err);
+        setError("Failed to load consent form.");
+      } finally {
+        setLoading(false);
       }
-    } catch (err: any) {
-      console.error("❌ Error fetching consent form:", err);
-      setError("Failed to load consent form.");
-    } finally {
-      setLoading(false);
+    };
+
+    fetchConsentForm();
+  }, [appointmentType, consultationId, treatmentId, initialStatus]);
+
+  useEffect(() => {
+  const loadRole = async () => {
+    const storedRole = await AsyncStorage.getItem("roleId");
+    setRoleId(Number(storedRole));
+  };
+  loadRole();
+}, []);
+
+  // compress the image before uploading
+  const compressImage = async (uri: string) => {
+    try {
+      const result = await ImageManipulator.manipulateAsync(
+        uri,
+        [{ resize: { width: 900 } }], // reduce resolution
+        {
+          compress: 0.6, // 0–1 (lower = more compression)
+          format: ImageManipulator.SaveFormat.JPEG,
+        },
+      );
+      return result.uri;
+    } catch (error) {
+      console.log("Image compression error: ", error);
+      return uri;
     }
   };
 
-  fetchConsentForm();
-}, [appointmentType, consultationId, treatmentId, initialStatus]);
-
-// compress the image before uploading
-const compressImage = async (uri: string) => {
-  try {
-    const result = await ImageManipulator.manipulateAsync(
-      uri,
-      [{ resize: { width: 900 } }],   // reduce resolution
-      {
-        compress: 0.6,               // 0–1 (lower = more compression)
-        format: ImageManipulator.SaveFormat.JPEG,
+  // Consent Form submission handlers
+  const submitAnswers = async () => {
+    try {
+      if (!form) {
+        Alert.alert("Error", "Form not loaded.");
+        return;
       }
-    );
-    return result.uri;
-  } catch (error) {
-    console.log("Image compression error: ", error);
-    return uri;
-  }
-};
 
-// Consent Form submission handlers
-const submitAnswers = async () => {
-  try {
-    if (!form) {
-      Alert.alert("Error", "Form not loaded.");
-      return;
+      const roleId = await AsyncStorage.getItem("roleId");
+      const userId = await AsyncStorage.getItem("userId");
+      const enteredBy = Number(userId || roleId || 0);
+
+      let apiEndpoint = "";
+      let payload: any[] = [];
+
+      // ---------------- CONSULTATION ----------------
+      if (appointmentType === "Consultation") {
+        if (!consultationId || !consultationAppointmentId) {
+          Alert.alert(
+            "Missing Information",
+            "Cannot submit: Consultation IDs are missing.",
+          );
+          return;
+        }
+
+        apiEndpoint = "/ConcentForm/upload/ConcentAnswers";
+
+        payload = Object.entries(answers).map(([questionId, value]) => ({
+          customerId: id,
+          formId: form.id,
+          consultationAppoinmentId: consultationAppointmentId,
+          questionId: Number(questionId),
+          answers: Array.isArray(value) ? value.join(", ") : String(value),
+          enteredBy,
+        }));
+      }
+
+      // ---------------- TREATMENT ----------------
+      else if (appointmentType === "Treatment") {
+        // 🔴 FIX IS HERE (ONLY CHANGE)
+        const treatmentAppointmentIdSafe = (route.params as any)
+          .TreatmentAppointmentId;
+
+        if (!treatmentAppointmentIdSafe) {
+          Alert.alert(
+            "Missing Information",
+            "Cannot submit: Treatment Appointment ID is missing.",
+          );
+          return;
+        }
+
+        apiEndpoint = "/ConcentForm/upload/DailyTreatFormAnswers";
+
+        payload = Object.entries(answers).map(([questionId, value]) => ({
+          customerId: id,
+          formId: form.id,
+          treatmentAppoinmentId: treatmentAppointmentIdSafe,
+          questionId: Number(questionId),
+          answers: Array.isArray(value) ? value.join(", ") : String(value),
+          enteredBy,
+        }));
+      }
+
+      // ---------------- INVALID TYPE ----------------
+      else {
+        Alert.alert("Error", "Invalid appointment type.");
+        return;
+      }
+
+      console.log("📤 Submitting payload to:", apiEndpoint);
+      console.log("📦 Payload:", payload);
+
+      const response = await api.post(apiEndpoint, payload);
+
+      console.log("✅ Answers submitted successfully:", response.data);
+      Alert.alert("Success", "Form submitted successfully!");
+    } catch (error: any) {
+      console.error("❌ Error submitting answers:", error);
+
+      if (error.response) {
+        console.log("🔴 Server response:", error.response.data);
+        console.log("🔴 Status:", error.response.status);
+      }
+
+      Alert.alert("Error", "Failed to submit answers.");
     }
+  };
 
-    // 🛡️ Guard: Only allow if AppointmentType is Consultation
-    // and both ID fields are populated
-    if (appointmentType !== "Consultation") {
-      console.log("Blocking submission: Not a Consultation type.");
-      return; 
-    }
-
-    if (!consultationId || !consultationAppointmentId) {
-      Alert.alert("Missing Information", "Cannot submit: Consultation IDs are missing.");
-      console.error("ID Validation Failed:", { consultationId, consultationAppointmentId });
-      return;
-    }
-
-    // Proceed with submission logic
-    const roleId = await AsyncStorage.getItem("roleId");
-    const userId = await AsyncStorage.getItem("userId");
-    const enteredBy = Number(userId || roleId || 0);
-
-    const payload = Object.entries(answers).map(([questionId, value]) => ({
-      customerId: id,
-      formId: form.id,
-      consultationAppoinmentId: consultationAppointmentId, // Using the validated ID
-      questionId: Number(questionId),
-      answers: Array.isArray(value) ? value.join(", ") : String(value),
-      enteredBy,
-    }));
-
-    console.log("📤 Submitting Consultation payload:", payload);
-
-    const response = await api.post(
-      "/ConcentForm/upload/ConcentAnswers",
-      payload
-    );
-
-    console.log("✅ Consultation answers submitted:", response.data);
-    Alert.alert("Success", "Consultation form submitted successfully!");
-
-  } catch (error: any) {
-    console.error("❌ Error submitting consultation answers:", error);
-    Alert.alert("Error", "Failed to submit answers");
-  }
-};
-
-//Text Change handler
+  //Text Change handler
   const handleTextChange = (questionId: number, text: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: text }));
   };
 
-const openImagePicker = async () => {
-  let result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ImagePicker.MediaTypeOptions.Images,
-    quality: 1,
-  });
+  const openImagePicker = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 1,
+    });
 
-  if (!result.canceled) {
-    const compressedUri = await compressImage(result.assets[0].uri);
-    setSelectedImages(prev => [...prev, compressedUri]);
-  }
-};
+    if (!result.canceled) {
+      const compressedUri = await compressImage(result.assets[0].uri);
+      setSelectedImages((prev) => [...prev, compressedUri]);
+    }
+  };
 
-const openCamera = async () => {
-  let result = await ImagePicker.launchCameraAsync({
-    quality: 1,
-  });
+  const openCamera = async () => {
+    let result = await ImagePicker.launchCameraAsync({
+      quality: 1,
+    });
 
-  if (!result.canceled) {
-    const compressedUri = await compressImage(result.assets[0].uri);
-    setSelectedImages(prev => [...prev, compressedUri]);
-  }
-};
+    if (!result.canceled) {
+      const compressedUri = await compressImage(result.assets[0].uri);
+      setSelectedImages((prev) => [...prev, compressedUri]);
+    }
+  };
 
   const handleRadioSelect = (questionId: number, option: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: option }));
@@ -351,117 +427,153 @@ const openCamera = async () => {
   };
 
   //To pick multiple images in the concent form
-//To pick multiple images in the concent form
-const uploadPhotos = async () => {
-  if (selectedImages.length === 0) {
-    Alert.alert("No photos selected", "Please choose at least one photo.");
-    return;
-  }
-
-  try {
-    setUploading(true);
-
-    const roleId = await AsyncStorage.getItem("roleId");
-    const parsedRoleId = Number(roleId);
-
-    console.log("🔵 Role ID during upload:", parsedRoleId);
-    console.log("📥 RAW ROUTE PARAMS:", route.params);
-
-    const formData = new FormData();
-
-    // ---------------- BASIC FIELDS ----------------
-    console.log("📤 customerId =", id);
-    formData.append("customerId", id);
-
-    let uploadFormType = appointmentType;
-    if (initialStatus === "notfilled") {
-      uploadFormType = "Initial";
+  //To pick multiple images in the concent form
+  const uploadPhotos = async () => {
+    if (selectedImages.length === 0) {
+      Alert.alert("No photos selected", "Please choose at least one photo.");
+      return;
     }
 
-    console.log("📤 formType =", uploadFormType);
-    formData.append("formType", uploadFormType);
+    try {
+      setUploading(true);
 
-    // ---------------- ID MAPPING (IMPORTANT PART) ----------------
-    const rawTreatmentAppointmentId = (route.params as any).TreatmentAppointmentId;
+      const roleId = await AsyncStorage.getItem("roleId");
+      const parsedRoleId = Number(roleId);
 
-    console.log("🧩 ID SOURCE VALUES");
-    console.log("   appointmentType =", appointmentType);
-    console.log("   consultationId =", consultationId);
-    console.log("   consultationAppointmentId =", consultationAppointmentId);
-    console.log("   TreatmentAppointmentId (RAW) =", rawTreatmentAppointmentId);
+      console.log("🔵 Role ID during upload:", parsedRoleId);
+      console.log("📥 RAW ROUTE PARAMS:", route.params);
 
-    let backendConsultationId = "0";
-    let backendTreatmentId = "0";
+      const formData = new FormData();
 
-    if (appointmentType === "Treatment") {
-      if (!rawTreatmentAppointmentId) {
-        throw new Error("TreatmentAppointmentId is missing");
+      // ---------------- BASIC FIELDS ----------------
+      console.log("📤 customerId =", id);
+      formData.append("customerId", id);
+
+      let uploadFormType = appointmentType;
+      if (initialStatus === "notfilled") {
+        uploadFormType = "Initial";
       }
-      backendTreatmentId = String(rawTreatmentAppointmentId);
-    } else {
-      if (!consultationAppointmentId) {
-        throw new Error("ConsultationAppointmentId is missing");
+
+      console.log("📤 formType =", uploadFormType);
+      formData.append("formType", uploadFormType);
+
+      // ---------------- ID MAPPING (IMPORTANT PART) ----------------
+      const rawTreatmentAppointmentId = (route.params as any)
+        .TreatmentAppointmentId;
+
+      console.log("🧩 ID SOURCE VALUES");
+      console.log("   appointmentType =", appointmentType);
+      console.log("   consultationId =", consultationId);
+      console.log("   consultationAppointmentId =", consultationAppointmentId);
+      console.log(
+        "   TreatmentAppointmentId (RAW) =",
+        rawTreatmentAppointmentId,
+      );
+
+      let backendConsultationId = "0";
+      let backendTreatmentId = "0";
+
+      if (appointmentType === "Treatment") {
+        if (!rawTreatmentAppointmentId) {
+          throw new Error("TreatmentAppointmentId is missing");
+        }
+        backendTreatmentId = String(rawTreatmentAppointmentId);
+      } else {
+        if (!consultationAppointmentId) {
+          throw new Error("ConsultationAppointmentId is missing");
+        }
+        backendConsultationId = String(consultationAppointmentId);
       }
-      backendConsultationId = String(consultationAppointmentId);
-    }
 
-    console.log("📦 FINAL BACKEND IDS");
-    console.log("   consultationId →", backendConsultationId);
-    console.log("   treatmentId →", backendTreatmentId);
+      console.log("📦 FINAL BACKEND IDS");
+      console.log("   consultationId →", backendConsultationId);
+      console.log("   treatmentId →", backendTreatmentId);
 
-    formData.append("consultationId", backendConsultationId);
-    formData.append("treatmentId", backendTreatmentId);
+      formData.append("consultationId", backendConsultationId);
+      formData.append("treatmentId", backendTreatmentId);
 
-    // ---------------- IMAGES ----------------
-    console.log("🖼️ Total images selected:", selectedImages.length);
+      // ---------------- IMAGES ----------------
+      console.log("🖼️ Total images selected:", selectedImages.length);
 
-    selectedImages.forEach((uri, index) => {
-      const filename = uri.split("/").pop() || `photo_${index}.jpg`;
-      const match = /\.(\w+)$/.exec(filename);
-      const type = match ? `image/${match[1]}` : `image/jpeg`;
+      selectedImages.forEach((uri, index) => {
+        const filename = uri.split("/").pop() || `photo_${index}.jpg`;
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : `image/jpeg`;
 
-      console.log(`📸 Image ${index + 1}`, {
-        uri,
-        filename,
-        type,
+        console.log(`📸 Image ${index + 1}`, {
+          uri,
+          filename,
+          type,
+        });
+
+        formData.append("files", {
+          uri,
+          name: filename,
+          type,
+        } as any);
       });
 
-      formData.append("files", {
-        uri,
-        name: filename,
-        type,
-      } as any);
-    });
+      // ---------------- FINAL PAYLOAD DUMP ----------------
+      console.log("🔥 --- FINAL FORM DATA SENT TO BACKEND ---");
+      (formData as any)._parts?.forEach((p: any) => {
+        console.log(`➡️ ${p[0]} :`, p[1]);
+      });
+      console.log("🔥 --- END FORM DATA ---");
 
-    // ---------------- FINAL PAYLOAD DUMP ----------------
-    console.log("🔥 --- FINAL FORM DATA SENT TO BACKEND ---");
-    (formData as any)._parts?.forEach((p: any) => {
-      console.log(`➡️ ${p[0]} :`, p[1]);
-    });
-    console.log("🔥 --- END FORM DATA ---");
+      // ---------------- API CALL ----------------
+      const response = await api.post(
+        "/ConcentForm/upload/Concentform",
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } },
+      );
 
-    // ---------------- API CALL ----------------
-    const response = await api.post(
-      "/ConcentForm/upload/Concentform",
-      formData,
-      { headers: { "Content-Type": "multipart/form-data" } }
-    );
+      console.log("✅ Upload successful:", response.data);
 
-    console.log("✅ Upload successful:", response.data);
+      // ---------------- UI / NAVIGATION ----------------
+      setUploadModalVisible(false);
+      setSelectedImages([]);
 
-    // ---------------- UI / NAVIGATION ----------------
-    setUploadModalVisible(false);
-    setSelectedImages([]);
+      if (parsedRoleId === 15 || parsedRoleId === 8) {
+        setSuccessModalVisible(true);
+      } else if (parsedRoleId === 20 || parsedRoleId === 21) {
+        const cleanedStatus = beforePhotoStatus
+          ?.toString()
+          .trim()
+          .toLowerCase();
 
-    if (parsedRoleId === 15 || parsedRoleId === 8) {
-      setSuccessModalVisible(true);
-
-    } else if (parsedRoleId === 20 || parsedRoleId === 21) {
-
-      const cleanedStatus = beforePhotoStatus?.toString().trim().toLowerCase();
-
-      if (cleanedStatus === "taken") {
-        navigation.navigate("Appoinments");
+        if (cleanedStatus === "taken") {
+          navigation.navigate("Appoinments");
+        } else {
+          if (appointmentType === "Treatment") {
+            navigation.navigate("StartTreatment", {
+              formData: {
+                customerId: id,
+                consultationId: 0,
+                treatmentAppointmentId: rawTreatmentAppointmentId,
+              },
+            });
+          } else {
+            navigation.navigate("Startconsultation", {
+              customerId: id,
+              consultationAppointmentId,
+            });
+          }
+        }
+      } else if (parsedRoleId === 17 || parsedRoleId === 19) {
+        if (appointmentType === "Treatment") {
+          navigation.navigate("StartTreatment", {
+            formData: {
+              customerId: id,
+              consultationId: 0,
+              treatmentAppointmentId: rawTreatmentAppointmentId,
+            },
+          });
+        } else {
+          navigation.navigate("Startconsultation", {
+            customerId: id,
+            consultationAppointmentId,
+          });
+        }
       } else {
         if (appointmentType === "Treatment") {
           navigation.navigate("StartTreatment", {
@@ -478,59 +590,19 @@ const uploadPhotos = async () => {
           });
         }
       }
+    } catch (error: any) {
+      console.error("❌ Upload error:", error);
 
-    } else if (parsedRoleId === 17 || parsedRoleId === 19) {
-
-      if (appointmentType === "Treatment") {
-        navigation.navigate("StartTreatment", {
-          formData: {
-            customerId: id,
-            consultationId: 0,
-            treatmentAppointmentId: rawTreatmentAppointmentId,
-          },
-        });
-      } else {
-        navigation.navigate("Startconsultation", {
-          customerId: id,
-          consultationAppointmentId,
-        });
+      if (error.response) {
+        console.log("🔴 Server response:", error.response.data);
+        console.log("🔴 Status code:", error.response.status);
       }
 
-    } else {
-
-      if (appointmentType === "Treatment") {
-        navigation.navigate("StartTreatment", {
-          formData: {
-            customerId: id,
-            consultationId: 0,
-            treatmentAppointmentId: rawTreatmentAppointmentId,
-          },
-        });
-      } else {
-        navigation.navigate("Startconsultation", {
-          customerId: id,
-          consultationAppointmentId,
-        });
-      }
+      Alert.alert("Error", "Failed to upload photos");
+    } finally {
+      setUploading(false);
     }
-
-  } catch (error: any) {
-    console.error("❌ Upload error:", error);
-
-    if (error.response) {
-      console.log("🔴 Server response:", error.response.data);
-      console.log("🔴 Status code:", error.response.status);
-    }
-
-    Alert.alert("Error", "Failed to upload photos");
-  } finally {
-    setUploading(false);
-  }
-};
-
-
-
-
+  };
   const handleDownloadPDF = async () => {
     try {
       if (!form) {
@@ -621,34 +693,29 @@ const uploadPhotos = async () => {
   return (
     <View className="flex-1 bg-white">
       <ScrollView className="flex-1 px-5 mt-10">
-       <View className="flex-row items-center justify-between mb-6 mt-[10%]">
-  {/* Title on the Left */}
-  <Text className="text-xl font-bold">{form?.formName}</Text>
+        <View className="flex-row items-center justify-between mb-6 mt-[10%]">
+          {/* Title on the Left */}
+          <Text className="text-xl font-bold">{form?.formName}</Text>
 
-  {/* Button Group on the Right */}
-  <View className="flex-row items-center gap-2"> 
-    {/* Download Button */}
-    <TouchableOpacity
-      onPress={() => handleDownloadPDF()} // Replace with your download function
-      className="bg-gray-200 px-4 py-2 rounded-lg"
-    >
-      <Text className="text-black font-semibold">Download</Text>
-    </TouchableOpacity>
-
-    {/* View Forms Button */}
-    <TouchableOpacity
-      onPress={() => setViewFormModalVisible(true)}
-      className="bg-primary px-4 py-2 rounded-lg"
-    >
-      <Text className="text-white font-semibold">View Forms</Text>
-    </TouchableOpacity>
-  </View>
-</View>
+          {/* Button Group on the Right */}
+          <View className="flex-row items-center gap-2">
+            {/* View Forms Button */}
+            <TouchableOpacity
+              onPress={() => setViewFormModalVisible(true)}
+              className="bg-primary px-4 py-2 rounded-lg"
+            >
+              <Text className="text-white font-semibold">View Forms</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
         {form?.questions
           .filter((q) => q.parentQuestionId === null)
           .map((parent) => (
-            <View key={parent.id} className="bg-gray-50 p-4 rounded-2xl shadow mb-4">
+            <View
+              key={parent.id}
+              className="bg-gray-50 p-4 rounded-2xl shadow mb-4"
+            >
               <Text className="font-semibold mb-2">{parent.questionText}</Text>
 
               {parent.inputType === "text" && (
@@ -669,7 +736,9 @@ const uploadPhotos = async () => {
                   >
                     <View
                       className={`w-5 h-5 border-2 rounded mr-2 ${
-                        answers[parent.id] === opt.optionText ? "bg-primary" : "bg-white"
+                        answers[parent.id] === opt.optionText
+                          ? "bg-primary"
+                          : "bg-white"
                       }`}
                     />
                     <Text>{opt.optionText}</Text>
@@ -681,11 +750,15 @@ const uploadPhotos = async () => {
                   <TouchableOpacity
                     key={opt.id}
                     className="flex-row items-center mb-2"
-                    onPress={() => handleChoiceToggle(parent.id, opt.optionText)}
+                    onPress={() =>
+                      handleChoiceToggle(parent.id, opt.optionText)
+                    }
                   >
                     <View
                       className={`w-5 h-5 border-2 rounded mr-2 ${
-                        ((answers[parent.id] as string[]) || []).includes(opt.optionText)
+                        ((answers[parent.id] as string[]) || []).includes(
+                          opt.optionText,
+                        )
                           ? "bg-primary"
                           : "bg-white"
                       }`}
@@ -704,8 +777,11 @@ const uploadPhotos = async () => {
                     shouldShow =
                       typeof parentAnswer === "string" &&
                       (parent.options?.some(
-                        (opt) => opt.id === child.optionId && opt.optionText === parentAnswer
-                      ) || false);
+                        (opt) =>
+                          opt.id === child.optionId &&
+                          opt.optionText === parentAnswer,
+                      ) ||
+                        false);
                   } else {
                     shouldShow = true;
                   }
@@ -726,7 +802,9 @@ const uploadPhotos = async () => {
                           placeholder="Type your answer..."
                           className="border rounded-lg px-3 py-2"
                           value={(answers[child.id] as string) || ""}
-                          onChangeText={(text) => handleTextChange(child.id, text)}
+                          onChangeText={(text) =>
+                            handleTextChange(child.id, text)
+                          }
                         />
                       )}
 
@@ -735,7 +813,9 @@ const uploadPhotos = async () => {
                           <TouchableOpacity
                             key={opt.id}
                             className="flex-row items-center mb-2"
-                            onPress={() => handleRadioSelect(child.id, opt.optionText)}
+                            onPress={() =>
+                              handleRadioSelect(child.id, opt.optionText)
+                            }
                           >
                             <View
                               className={`w-5 h-5 border-2 rounded mr-2 ${
@@ -753,11 +833,15 @@ const uploadPhotos = async () => {
                           <TouchableOpacity
                             key={opt.id}
                             className="flex-row items-center mb-2"
-                            onPress={() => handleChoiceToggle(child.id, opt.optionText)}
+                            onPress={() =>
+                              handleChoiceToggle(child.id, opt.optionText)
+                            }
                           >
                             <View
                               className={`w-5 h-5 border-2 rounded mr-2 ${
-                                ((answers[child.id] as string[]) || []).includes(opt.optionText)
+                                (
+                                  (answers[child.id] as string[]) || []
+                                ).includes(opt.optionText)
                                   ? "bg-primary"
                                   : "bg-white"
                               }`}
@@ -772,40 +856,35 @@ const uploadPhotos = async () => {
           ))}
 
         <View className="flex-row justify-between mb-10 mt-6">
-<TouchableOpacity
-  onPress={submitAnswers}
-  className="flex-1 bg-gray-200 py-4 rounded-xl mr-2"
->
-  <Text className="text-center font-semibold text-gray-800 text-lg">
-    Submit Form
-  </Text>
-</TouchableOpacity>
-
-
           <TouchableOpacity
+            onPress={submitAnswers}
+            className="flex-1 bg-gray-200 py-4 rounded-xl mr-2"
+          >
+            <Text className="text-center font-semibold text-gray-800 text-lg">
+              Submit Form
+            </Text>
+          </TouchableOpacity>
+
+         <TouchableOpacity
   onPress={async () => {
     try {
       const roleId = await AsyncStorage.getItem("roleId");
       const parsedRoleId = Number(roleId);
 
-      // 🟡 If RoleId is 20 or 21 → Skip upload modal
-      if (parsedRoleId === 20 || parsedRoleId === 21 || parsedRoleId === 17 || parsedRoleId === 19) {
-        console.log("🚫 Role 20/21/17/19 → Skipping photo upload.");
-
-        if (appointmentType === "Treatment") {
-          navigation.navigate("StartTreatment", {
-            formData: { customerId: id, consultationId: 0, treatmentAppointmentId },
-          });
-        } else {
-          navigation.navigate("Startconsultation", {
-            customerId: id,
-            consultationAppointmentId,
-          });
-        }
-      } else {
-        // 🟢 For other roles → open upload modal
-        setUploadModalVisible(true);
+      // ✅ Roles 15 & 8 → Navigate to Dashboard
+      if (parsedRoleId === 15 || parsedRoleId === 8) {
+        navigation.navigate("Dashboard");
+        return;
       }
+
+      // ✅ Roles 17, 19, 20, 21 → Open upload modal
+      if ([17, 19, 20, 21].includes(parsedRoleId)) {
+        setUploadModalVisible(true);
+        return;
+      }
+
+      // 🔵 Fallback (optional safety)
+      setUploadModalVisible(true);
     } catch (error) {
       console.error("Error checking RoleId:", error);
     }
@@ -813,248 +892,271 @@ const uploadPhotos = async () => {
   className="flex-1 bg-primary py-4 rounded-xl ml-2"
 >
   <Text className="text-white text-center font-semibold text-lg">
-    Next
+    Upload Form
   </Text>
 </TouchableOpacity>
 
         </View>
       </ScrollView>
-
       {/* 🟩 Upload Photo Modal */}
       <Modal
-        visible={uploadModalVisible}
+  visible={uploadModalVisible}
+  transparent
+  animationType="slide"
+  onRequestClose={() => setUploadModalVisible(false)}
+>
+  <View className="flex-1 bg-black/50 justify-center items-center px-5">
+    <View className="bg-white w-full rounded-2xl p-6 max-h-[85%]">
+
+      {/* 🔴 ROLES 15 / 8 → NO UPLOAD */}
+      {(roleId === 15 || roleId === 8) ? (
+        <>
+          <Text className="text-xl font-semibold text-center mb-4">
+            Action Not Required
+          </Text>
+
+          <Text className="text-center text-gray-600 mb-6">
+            Consent form upload is not required for your role.
+          </Text>
+
+          <TouchableOpacity
+            onPress={() => {
+              setUploadModalVisible(false);
+              navigation.navigate("Dashboard");
+            }}
+            className="bg-primary py-3 rounded-xl"
+          >
+            <Text className="text-white text-center font-semibold">
+              Go to Dashboard
+            </Text>
+          </TouchableOpacity>
+        </>
+      ) : (
+        <>
+          {/* 🟢 ROLES 17 / 19 / 20 / 21 → UPLOAD UI */}
+          <Text className="text-xl font-semibold text-center mb-4">
+            Upload Consent Form
+          </Text>
+
+          <View className="flex-row justify-center mb-3 gap-x-3">
+            <TouchableOpacity
+              onPress={openCamera}
+              className="bg-gray-200 flex-row items-center px-4 py-3 rounded-lg"
+            >
+              <Camera size={20} color="#333" />
+              <Text className="text-gray-800 ml-2">Camera</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={openImagePicker}
+              className="bg-gray-200 flex-row items-center px-4 py-3 rounded-lg"
+            >
+              <ImageIcon size={20} color="#333" />
+              <Text className="text-gray-800 ml-2">Gallery</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView
+            className="mt-3"
+            contentContainerStyle={{ alignItems: "center" }}
+          >
+            {selectedImages.length > 0 ? (
+              selectedImages.map((uri, index) => (
+                <View key={index} className="relative mb-4">
+                  <Image
+                    source={{ uri }}
+                    className="w-72 h-64 rounded-xl"
+                    resizeMode="cover"
+                  />
+                  <TouchableOpacity
+                    onPress={() =>
+                      setSelectedImages((prev) =>
+                        prev.filter((_, i) => i !== index)
+                      )
+                    }
+                    className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded-full"
+                  >
+                    <Text className="text-white text-xs">✕</Text>
+                  </TouchableOpacity>
+                </View>
+              ))
+            ) : (
+              <Text className="text-gray-500 mt-4">
+                No photos selected yet.
+              </Text>
+            )}
+          </ScrollView>
+
+          <View className="flex-row justify-between mt-4">
+            <TouchableOpacity
+              onPress={() => setUploadModalVisible(false)}
+              className="flex-1 bg-gray-200 py-3 rounded-xl mr-2"
+            >
+              <Text className="text-center text-gray-700 font-semibold">
+                Cancel
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              disabled={uploading || selectedImages.length === 0}
+              onPress={uploadPhotos}
+              className={`flex-1 ${
+                selectedImages.length > 0 ? "bg-blue-500" : "bg-gray-300"
+              } py-3 rounded-xl ml-2`}
+            >
+              <Text className="text-center text-white font-semibold">
+                {uploading ? "Uploading..." : "Upload"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
+    </View>
+  </View>
+</Modal>
+
+      {/* ------------------ View Form Images Modal (UPDATED) ------------------ */}
+      import CustomDropdown from "../components/CustomDropdown";
+      <Modal
+        visible={viewFormModalVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setUploadModalVisible(false)}
+        onRequestClose={() => setViewFormModalVisible(false)}
       >
-        <View className="flex-1 bg-black/50 justify-center items-center px-5">
+        <View className="flex-1 bg-black/60 justify-center items-center px-5">
           <View className="bg-white w-full rounded-2xl p-6 max-h-[85%]">
-            <Text className="text-xl font-semibold text-center mb-4">
-              Upload Consent Form
-            </Text>
-
-            <View className="flex-row justify-center mb-3 gap-x-3">
+            {/* Header */}
+            <View className="flex-row justify-between items-center mb-4">
+              <Text className="text-xl font-semibold">View Form Images</Text>
               <TouchableOpacity
-                onPress={openCamera}
-                className="bg-gray-200 flex-row items-center px-4 py-3 rounded-lg"
+                onPress={() => setViewFormModalVisible(false)}
+                className="p-2"
               >
-                <Camera size={20} color="#333" />
-                <Text className="text-gray-800 ml-2">Camera</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={openImagePicker}
-                className="bg-gray-200 flex-row items-center px-4 py-3 rounded-lg"
-              >
-                <ImageIcon size={20} color="#333" />
-                <Text className="text-gray-800 ml-2">Gallery</Text>
+                <X size={22} color="#000" />
               </TouchableOpacity>
             </View>
 
+            {/* Dropdowns */}
+            <View className="mb-4 flex-row justify-between">
+              {/* Form Type */}
+              <View className="flex-1 mr-2">
+                <CustomDropdown
+                  data={["Consultation", "Treatment"]}
+                  value={formType}
+                  placeholder="Select Form Type"
+                  onSelect={(val) => {
+                    setFormType(val);
+                    fetchFilledForms(val);
+                  }}
+                />
+              </View>
+
+              {/* Date */}
+              <View className="flex-1 ml-2">
+                <CustomDropdown
+                  data={availableForms.map((f) => f.date)}
+                  value={selectedDate}
+                  placeholder={
+                    availableForms.length ? "Select Date" : "No forms available"
+                  }
+                  onSelect={(date) => {
+                    setSelectedDate(date);
+                    const s = availableForms.find((f) => f.date === date);
+                    setFormImages(s?.pdfLocations || []);
+                  }}
+                />
+              </View>
+            </View>
+
+            {/* Images */}
             <ScrollView
               className="mt-3"
               contentContainerStyle={{ alignItems: "center" }}
             >
-              {selectedImages.length > 0 ? (
-                selectedImages.map((uri, index) => (
-                  <View key={index} className="relative mb-4">
-                    <Image
-                      source={{ uri }}
-                      className="w-72 h-64 rounded-xl"
-                      resizeMode="cover"
-                    />
-                    <TouchableOpacity
-                      onPress={() =>
-                        setSelectedImages((prev) => prev.filter((_, i) => i !== index))
-                      }
-                      className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded-full"
-                    >
-                      <Text className="text-white text-xs">✕</Text>
-                    </TouchableOpacity>
-                  </View>
+              {loadingForms ? (
+                <ActivityIndicator size="large" />
+              ) : formImages.length > 0 ? (
+                formImages.map((uri, idx) => (
+                  <Image
+                    key={idx}
+                    source={{ uri }}
+                    className="w-72 h-96 rounded-xl mb-4"
+                    resizeMode="contain"
+                  />
                 ))
               ) : (
-                <Text className="text-gray-500 mt-4">No photos selected yet.</Text>
+                <Text className="text-gray-500 mt-4">
+                  No images available for selected date.
+                </Text>
               )}
             </ScrollView>
 
-            <View className="flex-row justify-between mt-4">
+            {/* Checkbox */}
+            <View className="flex-row items-center mt-2 mb-3">
               <TouchableOpacity
-                onPress={() => setUploadModalVisible(false)}
-                className="flex-1 bg-gray-200 py-3 rounded-xl mr-2"
+                onPress={() => setAccepted(!accepted)}
+                className="w-6 h-6 border-2 border-gray-400 rounded-md mr-2 items-center justify-center"
               >
-                <Text className="text-center text-gray-700 font-semibold">
-                  Cancel
-                </Text>
+                {accepted && <View className="w-3.5 h-3.5 bg-primary" />}
               </TouchableOpacity>
-
-              <TouchableOpacity
-                disabled={uploading || selectedImages.length === 0}
-                onPress={uploadPhotos}
-                className={`flex-1 ${
-                  selectedImages.length > 0 ? "bg-blue-500" : "bg-gray-300"
-                } py-3 rounded-xl ml-2`}
-              >
-                <Text className="text-center text-white font-semibold">
-                  {uploading ? "Uploading..." : "Upload"}
-                </Text>
-              </TouchableOpacity>
+              <Text className="flex-1 text-gray-700">
+                I have read the consent form and accept it.
+              </Text>
             </View>
+
+            {/* Submit */}
+            <TouchableOpacity
+              disabled={!accepted}
+              onPress={() => setViewFormModalVisible(false)}
+              className={`py-3 rounded-xl mt-3 ${
+                accepted ? "bg-primary" : "bg-gray-300"
+              }`}
+            >
+              <Text
+                className={`text-center font-semibold ${
+                  accepted ? "text-white" : "text-gray-500"
+                }`}
+              >
+                Submit
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
+      {/* ✅ SUCCESS MODAL FOR ROLE 24 */}
+      <Modal
+        transparent
+        visible={successModalVisible}
+        animationType="fade"
+        onRequestClose={() => setSuccessModalVisible(false)}
+      >
+        <View className="flex-1 bg-black/50 justify-center items-center px-5">
+          <View className="bg-white p-6 rounded-2xl w-[85%] items-center">
+            {/* 😊 Success Icon */}
+            <View className="w-24 h-24 rounded-full border-4 border-primary justify-center items-center mb-4">
+              <Text style={{ fontSize: 50 }}>😊</Text>
+            </View>
 
+            <Text className="text-2xl font-bold text-primary mb-2">
+              Success!
+            </Text>
 
-{/* ------------------ View Form Images Modal (UPDATED) ------------------ */}
-import CustomDropdown from "../components/CustomDropdown";
+            <Text className="text-center text-gray-700 mb-6">
+              Uploading complete! Your file uploaded successfully.
+            </Text>
 
-<Modal
-  visible={viewFormModalVisible}
-  transparent
-  animationType="slide"
-  onRequestClose={() => setViewFormModalVisible(false)}
->
-  <View className="flex-1 bg-black/60 justify-center items-center px-5">
-    <View className="bg-white w-full rounded-2xl p-6 max-h-[85%]">
-
-      {/* Header */}
-      <View className="flex-row justify-between items-center mb-4">
-        <Text className="text-xl font-semibold">View Form Images</Text>
-        <TouchableOpacity
-          onPress={() => setViewFormModalVisible(false)}
-          className="p-2"
-        >
-          <X size={22} color="#000" />
-        </TouchableOpacity>
-      </View>
-
-      {/* Dropdowns */}
-      <View className="mb-4 flex-row justify-between">
-
-        {/* Form Type */}
-        <View className="flex-1 mr-2">
-          <CustomDropdown
-            data={["Consultation", "Treatment"]}
-            value={formType}
-            placeholder="Select Form Type"
-            onSelect={(val) => {
-              setFormType(val);
-              fetchFilledForms(val);
-            }}
-          />
+            <TouchableOpacity
+              onPress={() => {
+                setSuccessModalVisible(false);
+                navigation.navigate("Dashboard" as never);
+              }}
+              className="bg-primary px-10 py-3 rounded-xl"
+            >
+              <Text className="text-white font-semibold text-lg">Continue</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-
-        {/* Date */}
-        <View className="flex-1 ml-2">
-          <CustomDropdown
-            data={availableForms.map((f) => f.date)}
-            value={selectedDate}
-            placeholder={
-              availableForms.length ? "Select Date" : "No forms available"
-            }
-            onSelect={(date) => {
-              setSelectedDate(date);
-              const s = availableForms.find((f) => f.date === date);
-              setFormImages(s?.pdfLocations || []);
-            }}
-          />
-        </View>
-      </View>
-
-      {/* Images */}
-      <ScrollView
-        className="mt-3"
-        contentContainerStyle={{ alignItems: "center" }}
-      >
-        {loadingForms ? (
-          <ActivityIndicator size="large" />
-        ) : formImages.length > 0 ? (
-          formImages.map((uri, idx) => (
-            <Image
-              key={idx}
-              source={{ uri }}
-              className="w-72 h-96 rounded-xl mb-4"
-              resizeMode="contain"
-            />
-          ))
-        ) : (
-          <Text className="text-gray-500 mt-4">
-            No images available for selected date.
-          </Text>
-        )}
-      </ScrollView>
-
-      {/* Checkbox */}
-      <View className="flex-row items-center mt-2 mb-3">
-        <TouchableOpacity
-          onPress={() => setAccepted(!accepted)}
-          className="w-6 h-6 border-2 border-gray-400 rounded-md mr-2 items-center justify-center"
-        >
-          {accepted && <View className="w-3.5 h-3.5 bg-primary" />}
-        </TouchableOpacity>
-        <Text className="flex-1 text-gray-700">
-          I have read the consent form and accept it.
-        </Text>
-      </View>
-
-      {/* Submit */}
-      <TouchableOpacity
-        disabled={!accepted}
-        onPress={() => setViewFormModalVisible(false)}
-        className={`py-3 rounded-xl mt-3 ${
-          accepted ? "bg-primary" : "bg-gray-300"
-        }`}
-      >
-        <Text
-          className={`text-center font-semibold ${
-            accepted ? "text-white" : "text-gray-500"
-          }`}
-        >
-          Submit
-        </Text>
-      </TouchableOpacity>
-    </View>
-  </View>
-</Modal>
-
-
-{/* ✅ SUCCESS MODAL FOR ROLE 24 */}
-<Modal
-  transparent
-  visible={successModalVisible}
-  animationType="fade"
-  onRequestClose={() => setSuccessModalVisible(false)}
->
-  <View className="flex-1 bg-black/50 justify-center items-center px-5">
-    <View className="bg-white p-6 rounded-2xl w-[85%] items-center">
-
-      {/* 😊 Success Icon */}
-      <View className="w-24 h-24 rounded-full border-4 border-primary justify-center items-center mb-4">
-        <Text style={{ fontSize: 50 }}>😊</Text>
-      </View>
-
-      <Text className="text-2xl font-bold text-primary mb-2">
-        Success!
-      </Text>
-
-      <Text className="text-center text-gray-700 mb-6">
-        Uploading complete! Your file uploaded successfully.
-      </Text>
-
-      <TouchableOpacity
-        onPress={() => {
-          setSuccessModalVisible(false);
-          navigation.navigate("Dashboard" as never);
-        }}
-        className="bg-primary px-10 py-3 rounded-xl"
-      >
-        <Text className="text-white font-semibold text-lg">Continue</Text>
-      </TouchableOpacity>
-
-    </View>
-  </View>
-</Modal>
-
+      </Modal>
       <Navbar />
     </View>
   );

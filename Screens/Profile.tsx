@@ -39,18 +39,26 @@ const Profile = () => {
   const [packageHistory, setPackageHistory] = useState<any[]>([]);
   const [loadingPackage, setLoadingPackage] = useState(false);
   const [showModal, setShowModal] = useState(false);
-const [selectedPhoto, setSelectedPhoto] = useState<any>(null);
-const [uploading, setUploading] = useState(false);
+  const [selectedPhoto, setSelectedPhoto] = useState<any>(null);
+  const [uploading, setUploading] = useState(false);
+  const [inquiryHistory, setInquiryHistory] = useState<any[]>([]);
+  const [loadingInquiry, setLoadingInquiry] = useState(false);
+  const [refConsultations, setRefConsultations] = useState<any[]>([]);
+const [loadingRef, setLoadingRef] = useState(false);
 
   useEffect(() => {
     console.log("🟢 Profile screen received params:", route.params);
     console.log("🟢 Extracted customer ID:", id);
   }, [route.params, id]);
 
+
+  //Change this if you want to add more sections
   const sections = [
     "Consultation History",
     "Treatment History",
     "Packages History",
+    "Inquiry History",
+    "Ref Consultations",
   ];
 
   // Fetch profile data
@@ -69,14 +77,13 @@ const [uploading, setUploading] = useState(false);
     };
     fetchProfile();
   }, [id]);
-
   // Fetch consultation history
   useEffect(() => {
     const fetchConsultationHistory = async () => {
       try {
         setLoadingConsultation(true);
         const res = await api.get(`/Consultation/ConsultationHistory/${id}`);
-        console.log("📦 Consultation History:", res.data);
+        // console.log("📦 Consultation History:", res.data);
         setConsultationHistory(res.data);
       } catch (error) {
         console.error("❌ Error fetching consultation history:", error);
@@ -198,7 +205,7 @@ console.log("🧩 Final Profile URL:", finalUrl);
       try {
         setLoadingPackage(true);
         const res = await api.get(`/Treatment/Treatmentpackages/${id}`);
-        console.log("📦 Package History (raw):", JSON.stringify(res.data, null, 2));
+        // console.log("📦 Package History (raw):", JSON.stringify(res.data, null, 2));
 
         // Format packages: ensure each treatment has a name and a display price
         const formatted = (res.data || []).map((pkg: any) => ({
@@ -214,7 +221,7 @@ console.log("🧩 Final Profile URL:", finalUrl);
           })),
         }));
 
-        console.log("📦 Package History (formatted):", JSON.stringify(formatted, null, 2));
+        // console.log("📦 Package History (formatted):", JSON.stringify(formatted, null, 2));
         setPackageHistory(formatted);
       } catch (error) {
         console.error("❌ Error fetching package history:", error);
@@ -228,6 +235,22 @@ console.log("🧩 Final Profile URL:", finalUrl);
   const handleChange = (key: string, value: string) => {
     setEditableData({ ...editableData, [key]: value });
   };
+
+  useEffect(() => {
+  const fetchInquiryHistory = async () => {
+    try {
+      setLoadingInquiry(true);
+      const res = await api.get(`/History/Inquiry/${id}`);
+       console.log("📦 Inquiry History:", res.data);
+      setInquiryHistory(res.data);
+    } catch (error: any) { // 👈 FIX: Added : any
+      console.error("❌ Error fetching inquiry history:", error?.message);
+    } finally {
+      setLoadingInquiry(false);
+    }
+  };
+  fetchInquiryHistory();
+}, [id]);
 
   //insert data to be sent
   const handleSave = async () => {
@@ -258,6 +281,23 @@ console.log("🧩 Final Profile URL:", finalUrl);
       setSaving(false);
     }
   };
+
+  // Fetch Ref Consultation history
+useEffect(() => {
+  const fetchRefConsultations = async () => {
+    try {
+      setLoadingRef(true);
+      const res = await api.get(`/History/RefConsultation/${id}`);
+      console.log("📦 Ref Consultations:", res.data);
+      setRefConsultations(res.data);
+    } catch (error: any) {
+      console.error("❌ Error fetching ref consultations:", error?.message);
+    } finally {
+      setLoadingRef(false);
+    }
+  };
+  fetchRefConsultations();
+}, [id]);
 
   if (loading) {
     return (
@@ -602,6 +642,95 @@ console.log("🧩 Final Profile URL:", finalUrl);
                   </Text>
                 </View>
               )}
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+    )}
+  </View>
+)}
+
+{/* Inquiry History */}
+{expandedSection === section && section === "Inquiry History" && (
+  <View className="bg-gray-100 rounded-lg p-2">
+    {loadingInquiry ? (
+      <ActivityIndicator size="small" color="#000" />
+    ) : inquiryHistory.length === 0 ? (
+      <Text className="text-gray-500 text-sm">
+        No inquiry history found.
+      </Text>
+    ) : (
+      <ScrollView horizontal>
+        <View className="flex-col">
+          {/* Table Header */}
+          <View className="flex-row border-b border-gray-400 pb-1 mb-1">
+            <Text className="w-40 font-bold text-sm">Date</Text>
+            <Text className="w-48 font-bold text-sm">Inquiry</Text>
+            <Text className="w-32 font-bold text-sm">Status</Text>
+            <Text className="w-52 font-bold text-sm">Remarks</Text>
+          </View>
+          
+          {/* Table Body */}
+          {inquiryHistory.map((item) => (
+            <View
+              key={item.id}
+              className="flex-row items-center justify-between py-2 border-b border-gray-300 last:border-b-0 mr-4"
+            >
+              <Text className="w-40 text-sm">{item.date}</Text>
+              <Text className="w-48 text-sm">
+                {item.inqueryCategoryValue || "General Inquiry"}
+              </Text>
+              <Text className="w-32 text-sm capitalize">
+                {item.status}
+              </Text>
+              <Text className="w-52 text-sm text-gray-600">
+                {item.remark || "No remarks"}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+    )}
+  </View>
+)}
+
+{/* Ref Consultations Section */}
+{expandedSection === section && section === "Ref Consultations" && (
+  <View className="bg-gray-100 rounded-lg p-2">
+    {loadingRef ? (
+      <ActivityIndicator size="small" color="#000" />
+    ) : refConsultations.length === 0 ? (
+      <Text className="text-gray-500 text-sm">No reference consultations found.</Text>
+    ) : (
+      <ScrollView horizontal>
+        <View className="flex-col">
+          {/* Table Header */}
+          <View className="flex-row border-b border-gray-400 pb-1 mb-1">
+            <Text className="w-32 font-bold text-sm">Date</Text>
+            <Text className="w-48 font-bold text-sm">Doctor Name</Text>
+            <Text className="w-40 font-bold text-sm">Contact No</Text>
+            <Text className="w-80 font-bold text-sm">Note</Text>
+          </View>
+
+          {/* Table Body */}
+          {refConsultations.map((item) => (
+            <View
+              key={item.consultationId}
+              className="flex-row items-center justify-between py-2 border-b border-gray-300 last:border-b-0 mr-4"
+            >
+              <Text className="w-32 text-sm">
+                {item.date ? new Date(item.date).toLocaleDateString() : "N/A"}
+              </Text>
+              <Text className="w-48 text-sm font-medium">
+                {item.refererDoctorName || "N/A"}
+              </Text>
+              <Text className="w-40 text-sm">
+                {item.refererDoctorContactNo || "N/A"}
+              </Text>
+              {/* Using replace to strip HTML tags if the note is a string with HTML */}
+              <Text className="w-80 text-sm text-gray-600" numberOfLines={3}>
+                {(item.refererNote || "No notes provided").replace(/<[^>]*>?/gm, '')}
+              </Text>
             </View>
           ))}
         </View>
